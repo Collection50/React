@@ -1,0 +1,323 @@
+# Passing Props to a Component
+
+- `React` 컴포넌트는 `props`를 사용하여 통신합니다.
+- 모든 부모 컴포넌트는 `props`의 전달을 통해 자식 컴포넌트에 정보를 전달합니다.
+- `props`은 `HTML` 속성뿐만 아니라 개체, 배열, 함수를 포함한 모든 `JS` 값을 전달할 수 있습니다.
+
+## 배우게 될 것
+
+- 컴포넌트에 `props`를 전달하는 방법
+- 컴포넌트로부터 `props`를 읽는 방법
+- `props`의 기본 값을 지정하는 방법
+- 컴포넌트에 `JSX`를 전달하는 방법
+- 시간이 지남에 따라 `props`가 어떻게 변하는가?
+
+## Familiar props
+
+- `props`는 `JSX` 태그에 전달하는 정보입니다.
+- 예를 들어, `className`, `src`, `alt`, `width`, `height`와 같은 `props`은 `<img>`를 통해 전달할 수 있습니다.
+
+```js
+function Avatar() {
+  return (
+    <img
+      className='avatar'
+      src='https://i.imgur.com/1bX5QH6.jpg'
+      alt='Lin Lanying'
+      width={100}
+      height={100}
+    />
+  );
+}
+
+export default function Profile() {
+  return <Avatar />;
+}
+```
+
+- `<img>` 태그에 전달된 `props`는 미리 정의되어야 합니다. (ReactDOM은 HTML 표준을 준수합니다.)
+- 하지만 자신의 컴포넌트에 어떤 컴포넌트라도 보낼 수 있습니다.
+- `<Avatar>`와 같은 사용자 정의 컴포넌트를 사용하는 것처럼 말이죠.
+
+```js
+export default function Profile() {
+  return <Avatar />;
+}
+```
+
+- 2가지 단계를 통해 `Avatar`를 다른 `props`에 전달할 수 있습니다.
+
+### 1단계: 자식 컴포넌트에 props 전달
+
+- 먼저 일부 `props`을 `Avatar`에 전달합니다.
+- 예를 들어, `person`(객체)와 `size`(숫자)라는 2개 `props`을 전달하겠습니다.
+- **이중 중괄호는 객체입니다.**
+
+```js
+export default function Profile() {
+  return (
+    <Avatar person={{ name: 'Lin Lanying', imageId: '1bX5QH6' }} size={100} />
+  );
+}
+```
+
+### 2단계: 자식 컴포넌트 내부의 props 읽기
+
+- 이 `props`들은 `Avatar` 함수 뒤에 있는 쉼표 및 `({`, `})`로 구분된 `person`, `size`을 통해 확인할 수 있습니다.
+- 변수를 사용하는 것처럼 `Avatar` 코드 안에서 `props`를 사용할 수 있습니다.
+
+```js
+function Avatar({ person, size }) {
+  // person and size are available here
+}
+```
+
+- 렌더링을 위해 `person`, `size`를 사용하는 `Avatar`에 로직를 추가 하면 완성입니다.
+- `props`을 활용하여 `Avatar`를 다양한 방식으로 렌더링할 수 있습니다.
+- 값을 조정해 보세요!
+
+```js
+// App.js
+import { getImageUrl } from './utils.js';
+
+function Avatar({ person, size }) {
+  return (
+    <img
+      className='avatar'
+      src={getImageUrl(person)}
+      alt={person.name}
+      width={size}
+      height={size}
+    />
+  );
+}
+
+export default function Profile() {
+  return (
+    <div>
+      <Avatar
+        size={100}
+        person={{
+          name: 'Katsuko Saruhashi',
+          imageId: 'YfeOqp2',
+        }}
+      />
+      <Avatar
+        size={80}
+        person={{
+          name: 'Aklilu Lemma',
+          imageId: 'OKS67lh',
+        }}
+      />
+      <Avatar
+        size={50}
+        person={{
+          name: 'Lin Lanying',
+          imageId: '1bX5QH6',
+        }}
+      />
+    </div>
+  );
+}
+```
+
+```js
+// util.js
+export function getImageUrl(person, size = 's') {
+  return 'https://i.imgur.com/' + person.imageId + size + '.jpg';
+}
+```
+
+<br>
+
+- `props`를 사용하면 부모 컴포넌트와 자식 컴포넌트를 독립적으로 생각할 수 있습니다.
+- 예를 들어, `Avatar`와 관계없이 `Profile`의 `person`, `size` `props`를 변경할 수 있습니다.
+- 비슷하게, `Profile`과 관계없이 `Avatar`가 `props`를 사용하는 방식을 변경할 수 있습니다.
+  <br><br>
+- `props`를 **노브**처럼 조정하면 됩니다.
+- 함수에 대한 인수와 동일한 역할을 수행합니다.
+- 사실, 컴포넌트의 유일한 인수는 `props`입니다!
+- `React` 컴포넌트 함수는 1개 `props` 인수만 사용합니다.
+
+```js
+function Avatar(props) {
+  let person = props.person;
+  let size = props.size;
+  // ...
+}
+```
+
+<br>
+
+- 일반적으로 전체 `props`가 필요하지 않기에, 좀 더 작은 개별 `props`로 재구성합니다.
+- (객체의 **구조 분해 할당**)
+
+```js
+function Avatar(props) {
+  let person = props.person;
+  let size = props.size;
+  // ...
+}
+
+// 위 코드와 동일한 기능
+function Avatar({ person, size }) {
+  // ...
+}
+```
+
+### props의 기본값 지정
+
+- 값이 지정되지 않은 `props`에 기본값을 지정하려면 아래와 같이 **구조 분해 할당**과 `=`을 사용합니다.
+- `size` 지정 없이 `<Avatar person={...} />`이 렌더링된다면 `size`는 `100`으로 설정됩니다.
+
+```js
+function Avatar({ person, size = 100 }) {
+  // ...
+}
+```
+
+- 기본값은 `size`가 지정되지 않거나 `size={undefined}`인 경우만 사용됩니다.
+- `size={null}`이거나 `size={0}`인 경우엔 기본값이 사용되지 않습니다.
+
+## JSX 스프레드 문법으로 props 전달
+
+- `props`가 반복적일 때가 있습니다.
+
+```js
+function Profile({ person, size, isSepia, thickBorder }) {
+  return (
+    <div className='card'>
+      <Avatar
+        person={person}
+        size={size}
+        isSepia={isSepia}
+        thickBorder={thickBorder}
+      />
+    </div>
+  );
+}
+```
+
+- 가독성과 간결함을 유지하고 싶을 경우 아래와 같이 모든 `props`를 자식에게 전달합니다.
+
+```js
+function Profile(props) {
+  return (
+    <div className='card'>
+      <Avatar {...props} />
+    </div>
+  );
+}
+```
+
+- `Profile`의 모든 `props`는 나열되지 않는 방식으로 전달됩니다.
+- 스프레드 문법의 사용은 제한적입니다.
+- 모든 곳에서 사용되는 은탄환이 아니기 때문입니다.
+
+## JSX를 자식으로 전달
+
+- 브라우전 태그의 중첩 사용은 일반적인 방식입니다.
+
+```html
+<div>
+  <img />
+</div>
+```
+
+- 하지만 사용자 정의 컴포넌트를 중첩하는 경우도 존재합니다.
+
+```html
+<Card>
+  <Avatar />
+</Card>
+```
+
+- `JSX` 태그 안에 콘텐츠를 중첩하면, 상위 컴포넌트가 해당 콘텐츠를 자식으로 인식합니다.
+- 예를 들어, 아래 `Card` 컴포넌트는 `<Avatar/>`를 하위 컴포넌트로 인식하고 래퍼 `div`에서 렌더링합니다.
+
+```js
+// App.js
+import Avatar from './Avatar.js';
+
+function Card({ children }) {
+  return <div className='card'>{children}</div>;
+}
+
+export default function Profile() {
+  return (
+    <Card>
+      <Avatar
+        size={100}
+        person={{
+          name: 'Katsuko Saruhashi',
+          imageId: 'YfeOqp2',
+        }}
+      />
+    </Card>
+  );
+}
+```
+
+```js
+// Avatar.js
+import { getImageUrl } from './utils.js';
+
+export default function Avatar({ person, size }) {
+  return (
+    <img
+      className='avatar'
+      src={getImageUrl(person)}
+      alt={person.name}
+      width={size}
+      height={size}
+    />
+  );
+}
+```
+
+```js
+// util.js
+export function getImageUrl(person, size = 's') {
+  return 'https://i.imgur.com/' + person.imageId + size + '.jpg';
+}
+```
+
+- `Card` 컴포넌트가 중첩 콘텐츠를 어떻게 감싸는지 확인하려면 `<Card>` 내부의 `<Avatar>`를 텍스트로 변경하면 됩니다.
+- 그 안에서 무엇이 렌더링되는지 **알 필요가 없습니다**.
+- 많은 곳에서 이러한 유연한 패턴을 볼 수 있습니다.
+  <br><br>
+- `children` `prop`은 `JSX`와 부모 컴포넌트로 **채워질 수** 있는 **구멍**으로 생각할 수 있습니다.
+
+## 시간에 따라 변하는 props
+
+- 아래 `Clock` 컴포넌트는 부모 컴포넌트로부터 `color`, `time` `props`를 받습니다.
+
+```js
+export default function Clock({ color, time }) {
+  return <h1 style={{ color: color }}>{time}</h1>;
+}
+```
+
+- 컴포넌트는 시간이 지남에 따라 상이한 `props`를 전달받을 수 있다는 것을 의미합니다.
+- `props`는 고정적이지 않고 유동적입니다.
+- `time` `prop`은 매 초 변하고, `color` `prop`은 선택에 따라 변합니다.
+- `props`는 컴포넌트의 초기값이나 특정 시점의 데이터를 반영합니다.
+  <br><br>
+- 하지만 `props`는 변경되지 않습니다.
+- 컴포넌트가 `props를` **변경**해야 할 때, 상위 컴포넌트에 **다른** `props`를 **요청**해야 합니다!
+- (예: 사용자 상호작용 or 새로운 데이터에 대한 응답으로)
+- 오래된 `props`들은 버려질 것이고, 결국 `JS` 엔진은 가비지 콜렉터 역할을 수행합니다.
+- 즉, 수정되는 것이 아니라 교체되는 것입니다.
+
+## 요약
+
+- `HTML` 어트리뷰트를 사용하는 것처럼 `props`를 전달하려면 `JSX`에 추가합니다.
+- `props`를 읽기 위해선, 구조 분해 할당을 사용합니다. `function Avatar({ person, size })`
+- 미지정 되거나 `undefined` `props`를 사용하기 위해선 기본 값을 사용합니다. `size = 100`
+- 모든 `props`를 스프레드 문법으로 전달할 수 있지만, 과유불급입니다.
+- 중첩 JSX를 사용할 경우 중첩 순서에 따라 상위, 하위 컴포넌트로 분리됩니다.
+  - (`<Card><Avatar /></Card>`의 상위 컴포넌트는 `Card`, `Avatar`는 `Card`의 `children`)
+- `props`는 한 순간을 표시하는 읽기 전용 데이터입니다.
+  - 렌더링마다 새로운 버전의 `props`를 읽어야 합니다.
+- `props`는 수정되지 않습니다.
+  - 상호작용이 필요하다면 `state`의 변경이 필요합니다.
