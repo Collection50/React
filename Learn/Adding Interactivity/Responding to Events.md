@@ -1,0 +1,427 @@
+# Responding to Events
+
+- `React`는 `JSX`에 이벤트 핸들러를 추가합니다.
+- 이벤트 핸들러는 클릭, 호버링과 같은 상호 작용에 따라 동작되는 **사용자 영역**의 기능입니다.
+
+## 배우게 될 것
+
+- 이벤트 핸들러를 사용하는 여러 방법
+- 부모 컴포넌트로부터 이벤트 핸들러 로직을 전달하는 방법
+- 이벤트를 전파하고 중지하는 방법
+
+## 이벤트 핸들러 추가하기
+
+- 이벤트 핸들러를 추가하기 위해선 함수를 생성해야 하고, JSX 태그에 생성된 함수를 전달해야 합니다.
+
+```js
+export default function Button() {
+  return <button>I don't do anything</button>;
+}
+```
+
+<br>
+
+- 버튼을 클릭할 때마다 메시지가 작성되도록 하는 방법은 아래와 같습니다.
+  - `Button` 컴포넌트 안에 `handleClick` 함수 선언
+  - `handleClick` 함수 안에 로직 구현
+  - `<button>`에 `onClick={handleClick}` 추가
+
+```js
+export default function Button() {
+  function handleClick() {
+    alert('You clicked me!');
+  }
+
+  return <button onClick={handleClick}>Click me</button>;
+}
+```
+
+- `handleClick` 함수를 정의하였고, `<button>`에 전달했습니다.
+- `handleClick`은 **이벤트 핸들러**입니다.
+  <br><br>
+- 이벤트 핸들러 함수란?
+
+  - 컴포넌트 내부에 정의됩니다.
+  - `handle` **접두사 + 이벤트 이름** 형태로 사용됩니다.
+  - `handleClick`, `handleMouseEnter` 등이 존재합니다.
+    <br><br>
+
+- `JSX` 내부에 작성하는 인라인 스타일도 가능합니다.
+
+```js
+<button onClick={function handleClick() {
+  alert('You clicked me!');
+}}>
+```
+
+<br>
+
+- 화살표 함수를 사용하면 더 간결하게 표현할 수 있습니다.
+
+```js
+<button onClick={() => {
+  alert('You clicked me!');
+}}>
+```
+
+<br>
+
+### 주의: 이벤트 핸들러에 전달되는 함수는 호출되는 것이 아니라, **전달**되어야 합니다.
+
+| 올바른 전달                             | 올바르지 못한 전달(호출)           |
+| --------------------------------------- | ---------------------------------- |
+| `<button onClick={handleClick}>`        | `<button onClick={handleClick()}>` |
+| `<button onClick={() => alert('...')}>` | `<button onClick={alert('...')}> ` |
+
+- 올바르게 전달하는 경우 `handleClick` 함수는 `onClick` 이벤트 핸들러에 잘 전달됩니다.
+- 하지만 호출하는 경우 **렌더링 도중** `handleClick` 함수를 **실행**합니다.
+
+- 이벤트 핸들러를 인라인으로 정의하려면 다음과 같이 익명 함수로 래핑해야 합니다.
+
+```js
+// 올바르지 못한 방법(호출)
+<button onClick={alert('You clicked me!')}>
+// 올바른 방법
+<button onClick={() => alert('You clicked me!')}>
+```
+
+<br>
+
+## 이벤트 핸들러에서 props 읽기
+
+- 이벤트 핸들러는 컴포넌트 **내부**에서 선언되기 때문에, 컴포넌트의 `props`를 사용할 수 있습니다.
+- 아래 예시는 버튼이 클릭되었을 때 `prop`의 메시지를 `alert`합니다.
+
+```js
+function AlertButton({ message, children }) {
+  return <button onClick={() => alert(message)}>{children}</button>;
+}
+
+export default function Toolbar() {
+  return (
+    <div>
+      <AlertButton message='Playing!'>Play Movie</AlertButton>
+      <AlertButton message='Uploading!'>Upload Image</AlertButton>
+    </div>
+  );
+}
+```
+
+<br>
+
+## props로 이벤트 핸들러 전달하기
+
+- 자식 컴포넌트의 이벤트 핸들러를 구체화하기 위해 부모 컴포넌트가 필요한 경우가 존재합니다.
+- `Button` 컴포넌트의 위치에 따라 다른 기능을 부여하는 경우가 존재합니다. (영화 보기 or 이미지 업로드)
+- 따라서 부모로부터 받는 `props`를 이벤트 핸들러로 전달합니다.
+
+```js
+function Button({ onClick, children }) {
+  return <button onClick={onClick}>{children}</button>;
+}
+
+function PlayButton({ movieName }) {
+  function handlePlayClick() {
+    alert(`Playing ${movieName}!`);
+  }
+
+  return <Button onClick={handlePlayClick}>Play "{movieName}"</Button>;
+}
+
+function UploadButton() {
+  return <Button onClick={() => alert('Uploading!')}>Upload Image</Button>;
+}
+
+export default function Toolbar() {
+  return (
+    <div>
+      <PlayButton movieName="Kiki's Delivery Service" />
+      <UploadButton />
+    </div>
+  );
+}
+```
+
+- `Toolbar` 컴포넌트는 `PlayButton`, `UploadButton`을 렌더링합니다.
+- `PlayButton`은 `Button`의 `props`로 `handlePlayClick` 함수를 전달합니다.
+- `UploadButton`은 `Button`에게 화살표 함수를 전달합니다.
+  <br><br>
+- 마지막으로 `Button` 컴포넌트는 `onClick` `props`를 전달받습니다.
+- 이후 빌트인 `<button>` 태그에 `onClick={onClick}`을 직접적으로 `prop`을 전달합니다.
+- 이는 클릭 시 전달된 함수를 호출되는 것을 의미합니다.
+
+<br>
+
+## 이벤트 핸들러 props 이름 붙이기
+
+- 빌트인 컴포넌트인 `<button>`, `<div>` 등은 브라우저 이벤트인 `onClick`을 지원합니다.
+- 반면 사용자 컴포넌트를 사용할 때는 이벤트 핸들러 이름을 마음대로 지을 수 있습니다.
+- 일반적으로 이벤트 핸들러 `props`는 `on`으로 시작하며 다음 글자는 대문자로 작성됩니다.
+  <br><br>
+
+- 예를 들어, `Button` 컴포넌트의 `onClick` `prop`은 `onSmash`로 호출됩니다.
+
+```js
+function Button({ onSmash, children }) {
+  return <button onClick={onSmash}>{children}</button>;
+}
+
+export default function App() {
+  return (
+    <div>
+      <Button onSmash={() => alert('Playing!')}>Play Movie</Button>
+      <Button onSmash={() => alert('Uploading!')}>Upload Image</Button>
+    </div>
+  );
+}
+```
+
+- 위 예제를 살펴보면 브라우저는 여전히 `onClick` `prop`을 사용해야 합니다. `<button onClick={onSmash}>`
+- 하지만 `prop` 매개변수의 이름은 `Button` 컴포넌트에서 작성한 대로 전달할 수 있습니다.
+  <br><br>
+- 컴포넌트가 여러 상호작용을 담당할 때, 이벤트 핸들러의 이름을 각 목적에 맞게 작성할 수 있습니다.
+- 예시는 아래와 같습니다.
+
+```js
+export default function App() {
+  return (
+    <Toolbar
+      onPlayMovie={() => alert('Playing!')}
+      onUploadImage={() => alert('Uploading!')}
+    />
+  );
+}
+
+function Toolbar({ onPlayMovie, onUploadImage }) {
+  return (
+    <div>
+      <Button onClick={onPlayMovie}>Play Movie</Button>
+      <Button onClick={onUploadImage}>Upload Image</Button>
+    </div>
+  );
+}
+
+function Button({ onClick, children }) {
+  return <button onClick={onClick}>{children}</button>;
+}
+```
+
+- `App` 컴포넌트는 `Toolbar`의 `onPlayMovie`, `onUploadImage`가 무엇인지 알 필요 없습니다
+- 이것은 `Toolbar` 구현의 디테일입니다.
+- `Toolbar`는 `Button`에 `onClick` 이벤트 핸들러를 전달하지만, 키보드 단축키로 실행될 수도 있습니다.
+- 목적에 맞는 `props` 이름은 상호작용을 유연하게 확장할 수 있도록 합니다
+
+<br>
+
+## 이벤트 전파
+
+- 이벤트 핸들러는 컴포넌트의 모든 자식들에 대해 이벤트를 캐치할 수 있다.
+- 이를 **이벤트 버블링**, **이벤트 전파**라고 부릅니다. (이하 이벤트 전파)
+- 이벤트 방향은 발생 지점에서 위쪽입니다.
+  <br><br>
+- 아래 `<div>`는 2개의 버튼을 소유하고 있습니다.
+- 2개 `<div>`와 각 `<button>`은 본연의 `onClick` 핸들러를 가지고 있습니다.
+- 버튼을 클릭했을 때 어떤 핸들러가 동작할 것이라고 생각하시나요?
+
+```js
+export default function Toolbar() {
+  return (
+    <div
+      className='Toolbar'
+      onClick={() => {
+        alert('You clicked on the toolbar!');
+      }}
+    >
+      <button onClick={() => alert('Playing!')}>Play Movie</button>
+      <button onClick={() => alert('Uploading!')}>Upload Image</button>
+    </div>
+  );
+}
+```
+
+- 어떤 `<button>`을 클릭하더라도 `onClick`이 실행됩니다.
+- 이후 부모의 `<div>`의 `onClick`이 실행됩니다.
+- 따라서 2개의 메시지가 출력됩니다.
+- `toolbar`만 클릭한다면 `<div>`의 `onClick`만 실행됩니다.
+
+### 함정
+
+- 연결된 `JSX` 태그에서만 동작하는 Scroll을 제외하면, `React`에서 모든 이벤트는 전파됩니다.
+
+<br>
+
+## 이벤트 전파 중지
+
+- 이벤트 핸들러는 이벤트 객체를 유일한 인수로 전달 받습니다.
+- 일반적으로 `e`로 사용되며 `event`를 의미합니다.
+- 이벤트 객체를 활용하여 이벤트에 대한 정보를 얻을 수 있습니다.
+  <br><br>
+- 이벤트 객체는 이벤트 전파를 중지할 수 있습니다.
+- 부모 컴포넌트에게 이벤트가 전파되는 것을 방지하고 싶다면, 아래와 같이 `e.stopPropagation` 함수를 호출하면 됩니다.
+
+```js
+function Button({ onClick, children }) {
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+export default function Toolbar() {
+  return (
+    <div
+      className='Toolbar'
+      onClick={() => {
+        alert('You clicked on the toolbar!');
+      }}
+    >
+      <Button onClick={() => alert('Playing!')}>Play Movie</Button>
+      <Button onClick={() => alert('Uploading!')}>Upload Image</Button>
+    </div>
+  );
+}
+```
+
+- 버튼을 클릭했을 때 발생하는 것들
+
+  1. `onClick` 이벤트 핸들러를 `<button>`에 전달합니다.
+  2. `Button`에서 정의된 이벤트 핸들러는 아래를 수행합니다.
+     - `e.stopPropagation`를 실행하여 이후의 이벤트 전파를 중지합니다.
+     - `Toolbar` 컴포넌트에서 전달받은 `onClick`을 실행합니다.
+  3. `Toolbar` 컴포넌트에서 정의된 함수는 버튼 고유의 `alert`를 실행합니다.
+  4. 이벤트 전파가 중지되었기 때문에, 부모인 `<div>`의 `onClick` 이벤트 핸들러는 실행되지 않습니다.
+     <br><br>
+
+- `e.stopPropagation`의 결과로 버튼을 클릭했을 때 1번의 `alert`만 실행됩니다.
+- 각 버튼을 클릭하는 것은 toolbar를 클릭하는 것과 엄연히 다르기에, 이벤트 전파 중지는 UI에 합리적입니다.
+
+<br>
+
+## Deep Dive - 이벤트 캡처 단계
+
+- 흔하진 않지만 이벤트 전파가 중지되었음에도 자식의 모든 이벤트를 캐치할 필요가 있습니다.
+- 예를 들어 이벤트 전파 로직과 관계없이 모든 클릭 로그를 저장하고 싶을 수 있습니다.
+- 이벤트 이름 끝에 `Capture`를 추가하여 구현할 수 있습니다.
+
+```js
+<div
+  onClickCapture={() => {
+    /* this runs first */
+  }}
+>
+  <button onClick={(e) => e.stopPropagation()} />
+  <button onClick={(e) => e.stopPropagation()} />
+</div>
+```
+
+- 위 코드의 이벤트 전파는 3단계로 진행됩니다.
+
+  1. `onClickCapture` 이벤트 핸들러를 호출하며 아래 방향으로 전파됩니다.
+  2. 클릭된 엘리먼트의 `onClick` 핸들러를 실행합니다.
+  3. `onClick` 이벤트 핸들러를 호출하며 위 방향으로 전파합니다.
+
+- 이벤트 캡처는 분석, 라우터에서는 유용하나, 어플에선 잘 사용되지 않습니다.
+
+<br>
+
+## 이벤트 전파 대신 이벤트 핸들러 전달
+
+- 클릭 핸들러가 코드를 실행하고 부모로부터 전달된 `onClick` 이벤트 핸들러를 호출하는 방법을 살펴보겠습니다.
+
+```js
+function Button({ onClick, children }) {
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+```
+
+- 상위 `onClick` 핸들러가 호출되기 전에, 이 이벤트 핸들러에 코드를 추가할 수 있습니다.
+- 이는 이벤트 전파의 대안으로 사용할 수 있습니다.
+- 이는 하위 컴포넌트가 이벤트를 핸들링하는 동시에 상위 컴포넌트가 추가 기능을 수행할 수 있습니다.
+- 이벤트 전파와는 다르게, 자동으로 수행되지 않습니다.
+- 하지만 특정 이벤트의 결과로 실행되는 전체 코드를 명확하게 수행하는 장점을 가지고 있습니다.
+  <br><br>
+- 이벤트 전파에만 의지한다면 어떤 핸들러가 왜 실행되는지 확인하기 어렵습니다.
+
+<br>
+
+## 기본 동작 예방
+
+- 일부 브라우저 이벤트는 기본 동작이 연결되어 있습니다.
+- 예를 들어 `<form>` 태그는 클릭되었을 때 이벤트를 전송하는데, 이때 기본적으로 전체 페이지가 새로고침 됩니다.
+
+```js
+export default function Signup() {
+  return (
+    <form onSubmit={() => alert('Submitting!')}>
+      <input />
+      <button>Send</button>
+    </form>
+  );
+}
+```
+
+<br>
+
+- 이러한 현상을 막기 위해 이벤트 객체에 `e.preventDefault`를 사용할 수 있습니다.
+
+```js
+export default function Signup() {
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        alert('Submitting!');
+      }}
+    >
+      <input />
+      <button>Send</button>
+    </form>
+  );
+}
+```
+
+- `e.stopPropagation`와 `e.preventDefault`를 혼동하면 안됩니다.
+- 유용한 함수지만, 연관성은 없기 때문입니다.
+- `e.stopPropagation`: 태그에 연결된 이벤트 핸들러의 실행을 중지합니다.
+- `e.preventDefault`: 몇 개 이벤트에 대해 기본 브라우저 동작을 방지합니다.
+
+<br>
+
+## 이벤트 핸들러가 부수 효과를 발생시키나요?
+
+- 물론이죠!
+- 이벤트 핸들러는 부수 효과가 발생에 최적의 장소입니다.
+- 렌더링 함수와는 달리, 이벤트 핸들러는 순수 함수일 필요가 없습니다.
+- 따라서 어떤 것을 **변경**하기 좋습니다.
+- 예를 들어 입력에 의해 입력 값을 변경하거나 버튼을 누르면 목록을 변경하는 경우를 말합니다.
+- 하지만 어떤 것을 변경하기 전에 저장된 상태여야 합니다.
+- `React`에서는 컴포넌트의 저장 공간인 `state`에서 관리됩니다.
+
+## 요약
+
+- `<button>`과 같은 엘리먼트에 함수를 전달하여 이벤트를 핸들링 할 수 있습니다.
+- 이벤트 핸들러는 호출되는 것이 아니라, **전달되어야** 합니다.
+- 이벤트 핸들러는 인라인 방식, 함수 방식으로 정의할 수 있습니다.
+- 이벤트 핸들러는 **컴포넌트 내부**에서 정의되기에, `props`를 사용할 수 있습니다.
+- 상위 컴포넌트에서 이벤트 핸들러를 정의할 수 있고, 이벤트 핸들러를 하위 컴포넌트에 전달할 수 있습니다.
+- 목적에 맞게 이벤트 핸들러 이름을 선택할 수 있습니다.
+- 이벤트는 위쪽으로 전파됩니다.
+  - 이를 방지하려면 첫번째 인수에서 `e.stopPropagation`를 호출합니다.
+- 이벤트는 원치않는 브라우저 기본 동작을 수행할 수 있습니다.
+  - 이를 방지하려면 `e.preventDefault`를 호출합니다.
+- 하위 이벤트 핸들러를 명시적으로 호출하는 것은 이벤트 전파의 좋은 대안입니다.
