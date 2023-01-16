@@ -1,0 +1,390 @@
+# State: A Component's Memory
+
+- 컴포넌트는 종종 화면에 표시되는 내용을 변경해야 합니다.
+- 양식을 입력하면 입력 필드가 업데이트되고, **다음** 이미지룰 클릭하면 이미지가 변경되고, **구매**를 클릭하면 쇼핑 카트에 저장됩니다.
+- 컴포넌트는 현재 입력 값, 현재 이미지, 쇼핑 카트 등을 **기억**해야 합니다.
+- `React`에서는 이러한 컴포넌트별 메모리를 **_상태_**라고 합니다.
+
+## 배우게 될 것
+
+- `useStateHook`을 사용하여 `state` 변수를 추가하는 방법
+- `useStateHook`이 반환하는 값 쌍
+- 2개 이상의 `state` 변수를 추가하는 방법
+- `state`를 로컬이라고 하는 이유
+
+## 일반적인 변수가 충분하지 않은 경우
+
+- 아래는 조각상 이미지를 렌더링하는 컴포넌트입니다.
+- **Next** 버튼을 클릭하면 `index`를 1로 변경한 후, 2로 변경하여 다음 조각상이 표시됩니다.
+- 하지만, 이것은 작동하지 않습니다.
+
+```js
+import { sculptureList } from './data.js';
+
+export default function Gallery() {
+  const index = 0;
+
+  function handleClick() {
+    index = index + 1;
+  }
+
+  const sculpture = sculptureList[index];
+  return (
+    <>
+      <button onClick={handleClick}>Next</button>
+      <h2>
+        <i>{sculpture.name} </i>
+        by {sculpture.artist}
+      </h2>
+      <h3>
+        ({index + 1} of {sculptureList.length})
+      </h3>
+      <img src={sculpture.url} alt={sculpture.alt} />
+      <p>{sculpture.description}</p>
+    </>
+  );
+}
+```
+
+- `handleClick` 이벤트 핸들러가 지역 변수 인덱스를 업데이트하고 있습니다.
+- 그러나 2가지가 올바른 동작을 방해합니다.
+
+1. 지역 변수는 렌더링 중에 유지되지 않습니다.
+   - `React`는 이 컴포넌트를 2번째로 렌더링할 때, 처음부터 렌더링합니다
+   - 지역 변수에 대한 변경은 고려하지 않습니다.
+2. 지역 변수를 변경해도 렌더링이 다시 실행되지 않습니다.
+   - `React`는 새 데이터로 컴포넌트를 다시 렌더링해야 한다는 것을 인지하지 못합니다.
+     <br><br>
+
+- 컴포넌트를 새 데이터로 업데이트 하려면 아래 2가지가 수행되어야 합니다.
+
+1. 렌더링 간 데이터 **유지**
+2. 새로운 데이터와 **리렌더링** 실행
+   <br><br>
+
+- `useState Hook`은 아래 2가지를 제공합니다.
+
+1. 렌더링 도중 데이터를 유지하기 위한 상태 변수
+2. 변수 업데이트와 컴포넌트 리렌더링
+
+## 상태 변수 추가
+
+- 상태 변수를 추가하기 위해선 `useState`를 import 해야 합니다.
+
+```js
+import { useState } from 'react';
+```
+
+- 변경된 코드
+
+```js
+import { useState } from 'react';
+import { sculptureList } from './data.js';
+
+export default function Gallery() {
+  const [index, setIndex] = useState(0);
+
+  function handleClick() {
+    setIndex(index + 1);
+  }
+
+  const sculpture = sculptureList[index];
+  return (
+    <>
+      <button onClick={handleClick}>Next</button>
+      <h2>
+        <i>{sculpture.name} </i>
+        by {sculpture.artist}
+      </h2>
+      <h3>
+        ({index + 1} of {sculptureList.length})
+      </h3>
+      <img src={sculpture.url} alt={sculpture.alt} />
+      <p>{sculpture.description}</p>
+    </>
+  );
+}
+```
+
+## Hook과의 첫만남
+
+- `React`에서 `useState`와 같이 `use`로 시작하는 함수를 `Hook`이라고 합니다.
+- `Hook`은 렌더링 도중에만 사용할 수 있는 특별한 기능입니다.
+- 다양한 기능들을 **연결**시킵니다.
+  <br><br>
+- 상태는 이러한 기능 중 하나일 뿐이지만 나중에 다른 `Hook`를 만나게 될 것입니다.
+
+### 주의
+
+- `use`로 시작하는 함수인 `Hook`은 컴포넌트의 최상단, 사용자 정의 `Hook`에서만 호출될 수 있습니다.
+- 조건문, 반복문, 중첩 함수에서 `Hook`를 호출할 수 없습니다.
+- `Hook`는 함수지만, 컴포넌트의 요구에 대한 무조건적 선언으로 간주하는 것이 좋습니다.
+- 맨 위의 `import`와 같이 `use`를 사용하는 것입니다.
+
+## useState 파헤치기
+
+- `useState`를 호출하는 것은 컴포넌트가 기억할 것이 존재하는 것입니다.
+
+```jsz
+const [index, setIndex] = useState(0);
+```
+
+- 상태를 사용할 수 있는 유일한 인수는 상태 변수의 **초기값**입니다.
+- 예를 들어 `index`의 초기값은 `0`으로 설정되었습니다. (`useState(0)`)
+  <br><br>
+- 컴포넌트가 렌더링될 때마다 `useState`는 아래 2가지 값을 갖는 배열을 반환합니다.
+
+1. 저장할 값을 가진 상태 변수
+2. 상태 변수를 업데이트하고 컴포넌트를 다시 렌더링할 수 있는 `setter` 함수
+
+<br>
+
+- 아래 코드의 동작은 다음과 같습니다.
+
+```js
+const [index, setIndex] = useState(0);
+```
+
+1. 컴포넌트가 **처음으로 렌더링**됩니다.
+   - `index` 초기값으로 `0`을 전달했기 때문에, `[0, setIndex]`를 반환합니다
+   - `React`는 `0`이 최신 값임을 기억합니다.
+2. 상태를 업데이트 합니다.
+   - 유저가 버튼을 클릭했을 때 `setIndex(index + 1)`을 호출합니다.
+   - `index`는 `0`이므로, `setIndex(1)`과 같습니다.
+3. 컴포넌트가 **두번째로 렌더링**됩니다.
+   - `React`는 여전히 `useState(0)`을 사용하고 있습니다.
+   - 하지만 `index`를 `1`로 변경했기 때문에 `[1, setIndex]`를 반환합니다.
+4. 같은 과정이 반복됩니다.
+
+## 컴포넌트에게 여러 개의 변수 전달
+
+- 1개 컴포넌트에 많은 유형의 상태 변수를 저장할 수 있습니다.
+- 아래 컴포넌트는 숫자 타입의 `index`와 `boolean` 타입의 `showMore`가 있습니다.
+- 이 변수는 `Show details`를 클릭할 때 바뀝니다.
+
+```js
+import { useState } from 'react';
+import { sculptureList } from './data.js';
+
+export default function Gallery() {
+  const [index, setIndex] = useState(0);
+  const [showMore, setShowMore] = useState(false);
+  const sculpture = sculptureList[index];
+
+  function handleNextClick() {
+    setIndex(index + 1);
+  }
+
+  function handleMoreClick() {
+    setShowMore(!showMore);
+  }
+
+  return (
+    <>
+      <button onClick={handleNextClick}>Next</button>
+      <h2>
+        <i>{sculpture.name} </i>
+        by {sculpture.artist}
+      </h2>
+      <h3>
+        ({index + 1} of {sculptureList.length})
+      </h3>
+      <button onClick={handleMoreClick}>
+        {showMore ? 'Hide' : 'Show'} details
+      </button>
+      {showMore && <p>{sculpture.description}</p>}
+      <img src={sculpture.url} alt={sculpture.alt} />
+    </>
+  );
+}
+```
+
+- `index`, `showMore`와 같이 서로 관련 없는 변수의 경우, 여러 상태 변수를 사용하는 것이 좋습니다.
+- 하지만 2개의 상태 변수를 함께 변경하는 경우, 1개의 상태 변수로 결합하는 것이 더 좋습니다.
+- 예를 들어 필드가 많은 `form`을 사용하는 경우, 객체를 포함하는 단일 상태 변수를 사용하는 것이 좋습니다.
+
+### Deep Dive
+
+- `useState` 호출은 상태 변수에 대한 아무 정보도 수신하지 않습니다.
+- `useState`를 전달받는 **식별자**가 없는데 어떤 상태 변수를 반환하는지 알 수 있습니까?
+- 함수를 해석하는 것을 마법에 의존하고 있나요?
+- 아닐겁니다.
+  <br><br>
+- 효율적인 문법을 사용하는 대신, `Hook`은 동일한 컴포넌트의 모든 렌더링에서 안정적인 호출 순서를 따릅니다.
+- `Hook`은 동일한 순서로 호출되기 때문에 잘 작동합니다.
+- 더하여 `Linter`는 대부분의 실수를 잡아냅니다.
+  <br><br>
+- 내부적으로 `React`는 모든 컴포넌트에 대한 상태 쌍에 대한 배열을 가지고 있습니다.
+- 또한 렌더링 전에 `0`으로 설정된 **현재의 쌍 index**도 유지합니다.
+- `useState`를 호출할 때마다 `React`는 다음 상태 쌍과 증가된 `index`를 전달합니다.
+  <br><br>
+- 아래 예제는 `React`를 사용하지 않지만 `useState`가 내부적으로 작동하는 방식에 대해 알 수 있습니다.
+
+```js
+let componentHooks = [];
+let currentHookIndex = 0;
+
+// 간단히 설명된 useState 내부 동작
+function useState(initialState) {
+  let pair = componentHooks[currentHookIndex];
+  if (pair) {
+    // 첫 렌더링이 아닌 경우 상태 pair은 미리 존재한다.
+    // 다음 Hook call을 준비하고, 상태 pair을 전달한다
+    currentHookIndex++;
+    return pair;
+  }
+
+  // 첫 렌더링의 경우, 상태 pair을 만들어 저장한다.
+  pair = [initialState, setState];
+
+  function setState(nextState) {
+    // 유저가 상태를 변경했을 때 새로운 값을 pair에 할당한다.
+    pair[0] = nextState;
+    updateDOM();
+  }
+
+  // 미래의 렌더링을 위해 pair를 저장하고 다음 Hook 호출을 대기한다.
+  // Store the pair for future renders
+  // and prepare for the next Hook call.
+  componentHooks[currentHookIndex] = pair;
+  currentHookIndex++;
+  return pair;
+}
+
+function Gallery() {
+  // useState 호출은 다음 pair에 대한 값을 얻는다.
+  const [index, setIndex] = useState(0);
+  const [showMore, setShowMore] = useState(false);
+
+  function handleNextClick() {
+    setIndex(index + 1);
+  }
+
+  function handleMoreClick() {
+    setShowMore(!showMore);
+  }
+
+  let sculpture = sculptureList[index];
+  // 이 예제는 React를 사용하지 않습니다.
+  // 따라서 JSX 대신에 객체를 반환합니다.
+  return {
+    onNextClick: handleNextClick,
+    onMoreClick: handleMoreClick,
+    header: `${sculpture.name} by ${sculpture.artist}`,
+    counter: `${index + 1} of ${sculptureList.length}`,
+    more: `${showMore ? 'Hide' : 'Show'} details`,
+    description: showMore ? sculpture.description : null,
+    imageSrc: sculpture.url,
+    imageAlt: sculpture.alt,
+  };
+}
+
+function updateDOM() {
+  // 컴포넌트를 렌더링하기 전, 최근의 Hook 인덱스를 초기화합니다.
+  currentHookIndex = 0;
+  let output = Gallery();
+
+  // 출력과 일치하도록 DOM을 업데이트합니다.
+  nextButton.onclick = output.onNextClick;
+  header.textContent = output.header;
+  moreButton.onclick = output.onMoreClick;
+  moreButton.textContent = output.more;
+  image.src = output.imageSrc;
+  image.alt = output.imageAlt;
+  if (output.description !== null) {
+    description.textContent = output.description;
+    description.style.display = '';
+  } else {
+    description.style.display = 'none';
+  }
+}
+
+// UI를 초기 상태와 일치시킵니다.
+updateDOM();
+```
+
+## 상태는 고립적이고 프라이빗합니다.
+
+- 상태는 스크린의 컴포넌트 인스턴스에 대해 지역적입니다.
+- 다른 말로, 같은 컴포넌트를 2번 렌더링한다면 각 상태의 복사본은 완전히 분리됩니다.
+- 둘 중 하나를 변경해도 다른 하나는 영향을 받지 않습니다.
+  <br><br>
+- 아래 예제는 이전의 갤러리 컴포넌트의 로직을 변경하지 않고 2번 렌더링됩니다.
+- 각 갤러리 내부의 버튼은 독립적으로 동작합니다.
+
+```js
+// App
+import Gallery from './Gallery.js';
+
+export default function Page() {
+  return (
+    <div className='Page'>
+      <Gallery />
+      <Gallery />
+    </div>
+  );
+}
+```
+
+```js
+// Gallary
+import { useState } from 'react';
+import { sculptureList } from './data.js';
+
+export default function Gallery() {
+  const [index, setIndex] = useState(0);
+  const [showMore, setShowMore] = useState(false);
+
+  function handleNextClick() {
+    setIndex(index + 1);
+  }
+
+  function handleMoreClick() {
+    setShowMore(!showMore);
+  }
+
+  let sculpture = sculptureList[index];
+  return (
+    <section>
+      <button onClick={handleNextClick}>Next</button>
+      <h2>
+        <i>{sculpture.name} </i>
+        by {sculpture.artist}
+      </h2>
+      <h3>
+        ({index + 1} of {sculptureList.length})
+      </h3>
+      <button onClick={handleMoreClick}>
+        {showMore ? 'Hide' : 'Show'} details
+      </button>
+      {showMore && <p>{sculpture.description}</p>}
+      <img src={sculpture.url} alt={sculpture.alt} />
+    </section>
+  );
+}
+```
+
+- 이것이 파일 맨 위에 선언 가능한 변수와 상태가 다른 이유입니다.
+- 상태는 특정 함수나 코드에 종속적인 것이 아니라, 특정 스크린 공간에 **지역적**으로 존재합니다.
+- 두 개의 `<Gallary/>` 구성요소를 렌더링하였으므로 상태는 개별적으로 저장됩니다.
+  <br><br>
+- 또한 `Page` 컴포넌트가 갤러리 상태에 대해 아무것도 모릅니다.
+- 상태는 `props`와 다르게 **상태를 선언하는 컴포넌트에** 완전히 `private`하게 종속됩니다.
+- 상위 컴포넌트가 이를 변경할 수 없습니다.
+- 이는 다른 컴포넌트에 영향을 주지 않고 상태를 추가하거나 제거할 수 있습니다.
+  <br><br>
+- 만약 두 `Gallary`가 상태를 동기화하기를 원한다면요?
+- `React`에서 올바른 방법은 하위 컴포넌트에서 **상태를 제거**하고 가장 가까운 상위 컴포넌트에 추가하는 것입니다.
+
+## 요약
+
+- 컴포넌트가 렌더링 도중 데이터를 **기억**해야 할 경우 상태 변수를 사용합니다.
+- 상태 변수는 `useState` `Hook`을 호출하여 선언합니다.
+- `Hook`은 `use`로 시작하는 특별한 함수입니다.
+  - 상태와 같은 `React` 기능을 사용할 수 있도록 합니다.
+- `Hook`은 import를 무조건 사용해야 합니다.
+- `useState`를 포함한 `Hook` 호출은 컴포넌트 or 다른 `Hook`의 맨 위에서만 유효합니다.
+- `useState` `Hook`은 `[현재 상태, 업데이트 함수]` 쌍을 반환합니다.
+- 1개 이상의 상태 변수를 사용할 수 있습니다.
+  - 내부적으로 `React`는 순서에 따라 변수를 매치합니다.
+- 상태는 `private`한 컴포넌트입니다.
