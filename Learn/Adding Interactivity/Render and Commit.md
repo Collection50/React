@@ -1,0 +1,195 @@
+# Render and Commit
+
+- 컴포넌트를 화면에 표시하기 전에 `React`에서 렌더링을 해야 합니다.
+- 해당 단계를 이해하면 렌더링 동작과 코드가 어떻게 실행되는지 이해할 수 있습니다.
+
+## 배우게 될 것
+
+- `React`에서 렌더링의 의미
+- `React`가 언제, 왜 컴포넌트를 렌더링하는가?
+- 컴포넌트를 화면에 표시하는 단계
+- 렌더링이 항상 DOM 업데이트를 하지 않는 이유
+
+- 주방에서 요리사가 컴포넌트를 재료로 맛있는 요리를 한다고 상상해보세요.
+- `React`는 고객들의 요청을 받고 주문을 가져오는 **웨이터**입니다.
+- 이 과정에는 `UI`를 요청하고 제공하는 세 가지 단계가 있습니다.
+
+1. 렌더링 트리거 (손님의 주문을 주방으로 전달)
+2. 컴포넌트 렌더링 (주방에서 주문 준비하기)
+3. DOM에 커밋 (테이블에 주문한 요리 내놓기)
+
+## 1단계: 렌더링 트리거
+
+- 컴포넌트 렌더링이 일어나는 데에는 두 가지 이유가 있습니다.
+
+1. 컴포넌트의 **첫 렌더링**인 경우
+2. 컴포넌트 **상태가 업데이트**된 경우
+
+### 첫 렌더링
+
+- 앱이 시작되었을때 초기 렌더링을 트리거 해야합니다.
+- 프레임워크와 샌드박스가 코드를 숨기는 경우가 있지만, 루트 컴포넌트와 타깃 DOM 노드로` ReactDOM.render`를 호출하면 됩니다.
+
+```js
+// App.js
+import Image from './Image.js';
+import { createRoot } from 'react-dom/client';
+
+const root = createRoot(document.getElementById('root'));
+root.render(<Image />);
+```
+
+```js
+export default function Image() {
+  return (
+    <img
+      src='https://i.imgur.com/ZF6s192.jpg'
+      alt="'Floralis Genérica' by Eduardo Catalano: a gigantic metallic flower sculpture with reflective petals"
+    />
+  );
+}
+```
+
+- `ReactDOM.render` 호출을 주석 처리하고 컴포넌트가 사라지는 것을 확인하세요!
+
+### 상태 업데이트 시 렌더링
+
+- 컴포넌트가 처음 렌더링되면 `set` 함수로 상태를 업데이트하여 렌더링을 추가로 트리거할 수 있습니다.
+- 컴포넌트의 상태를 업데이트하면 렌더링이 자동으로 큐에 등록됩니다.
+- (이것들은 갈증이나 배고픔의 상태에 따라 식당 손님이 첫 주문 후 차, 디저트 등을 주문하는 것으로 상상할 수 있습니다.)
+
+## 2단계: React 컴포넌트 렌더링
+
+- 렌더링을 트리거한 후 `React`는 컴포넌트를 호출하여 화면에 표시할 내용을 파악합니다.
+- **렌더링**은 `React`에서 컴포넌트를 호출하는 것입니다.
+
+  - 첫 렌더링에서 `React`는 루트 컴포넌트를 호출합니다.
+  - 이후 렌더링에서 `React`는 렌더링을 트리거한 컴포넌트를 호출합니다.
+    <br><br>
+
+- 렌더링은 재귀적으로 수행됩니다.
+- 업데이트된 컴포넌트가 다른 컴포넌트를 반환하면 해당 컴포넌트를 렌더링하고 해당 컴포넌트도 컴포넌트를 반환하면 반환된 컴포넌트를 다음에 렌더링하는 방식입니다.
+- 중첩된 컴포넌트가 더 이상 없고 화면에 표시되어야 하는 내용을 정확히 알 때까지 이 단계는 계속됩니다.
+  <br><br>
+
+- 다음 예제에서 `React`는 `Gallery()`와 `Image()`를 여러 번 호출합니다.
+
+```js
+// Gallary.js
+export default function Gallery() {
+  return (
+    <section>
+      <h1>Inspiring Sculptures</h1>
+      <Image />
+      <Image />
+      <Image />
+    </section>
+  );
+}
+
+function Image() {
+  return (
+    <img
+      src='https://i.imgur.com/ZF6s192.jpg'
+      alt="'Floralis Genérica' by Eduardo Catalano: a gigantic metallic flower sculpture with reflective petals"
+    />
+  );
+}
+```
+
+```js
+// index.js
+import Gallery from './Gallery.js';
+import { createRoot } from 'react-dom/client';
+
+const root = createRoot(document.getElementById('root'));
+root.render(<Gallery />);
+```
+
+- **첫 렌더링**에서 `React`는 `<section>`, `<h1> `그리고 3개의 `<img>` 태그에 대한 DOM 노드를 생성합니다.
+- **리렌더링**하는 동안 `React`는 이전 렌더링 이후 **변경된 속성**을 계산합니다.
+- 다음 단계인 커밋 단계까지는 해당 정보로 아무런 작업도 수행하지 않습니다.
+
+### 주의 - 렌더링은 항상 순수해야 합니다.
+
+- 동일 입력, 동일 출력.
+
+  - 동일한 입력이 주어지면 컴포넌트는 항상 동일한 `JSX`를 반환해야 합니다.
+  - (누군가 토마토 샐러드를 주문하면 그들은 양파가 있는 샐러드를 받으면 안 됩니다!)
+
+- 함수는 자체의 기능에만 관여합니다.
+
+  - 렌더링 전에 존재했던 객체나 변수를 변경해서는 안 됩니다.
+  - (누군가의 주문이 다른 사람의 주문을 변경해서는 안 됩니다.)
+    <br><br>
+
+- 그렇지 않으면 코드베이스가 복잡해짐에 따라 혼란스러운 버그와 예측할 수 없는 동작이 발생할 수 있습니다.
+- **Strict Mode**에서 개발할 때 `React`는 각 컴포넌트의 함수를 **2번 호출**하여 비순수 함수로 인한 실수를 방지할 수 있습니다.
+  <br><br>
+
+## Deep Dive - 성능 최적화
+
+- 업데이트된 컴포넌트가 트리에서 매우 높은 곳에 있는 경우 중첩된 모든 컴포넌트를 렌더링하는 기본 동작은 성능 최적화가 아닙니다.
+- 성능 문제가 발생하는 경우 **Performance** 섹션에 설명된 몇 가지 방식으로 문제를 해결 할 수 있습니다.
+- 성급하게 최적화하지 마세요!
+
+## 3단계: React 변경 사항을 DOM에 커밋합니다.
+
+- 컴포넌트를 렌더링한 이후, `React`는 `DOM`을 수정합니다.
+  - **첫 렌더링**의 경우 `React`는 `appendChild()` `DOM API`를 사용하여 `DOM` 노드가 생성한 모든 것을 스크린에 전달합니다.
+  - **리렌더링**의 경우 `React`는 DOM을 최신 렌더링과 일치하시기 위해 **최소한으로 필요한 부분**만 적용합니다.
+    <br><br>
+- **`React`는 렌더링과 차이점이 존재하는 `DOM` 노드만 변경합니다.**
+- 예를 들어 상위 컴포넌트에게 매초마다 다른 `props`를 전달받는 컴포넌트가 존재합니다.
+- `<input>`에 텍스트를 입력하여 `value`를 업데이트 하지만 컴포넌트가 리렌더링될 때 텍스트가 사라지지 않습니다.
+
+```js
+export default function Clock({ time }) {
+  return (
+    <>
+      <h1>{time}</h1>
+      <input />
+    </>
+  );
+}
+```
+
+```js
+import { useState, useEffect } from 'react';
+import Clock from './Clock.js';
+
+function useTime() {
+  const [time, setTime] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => {
+      setTime(new Date());
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return time;
+}
+
+export default function App() {
+  const time = useTime();
+  return <Clock time={time.toLocaleTimeString()} />;
+}
+```
+
+- 마지막 단계에서 `React`가 `<h1>`의 내용만 새로운 `time`으로 업데이트하기 때문입니다.
+- `<input>`이 `JSX`에서 전과 같으므로 `React`는 `<input>` 또는 `value`를 건드리지 않습니다!
+
+## 에필로그: 브라우저 페인트
+
+- 렌더링과 `DOM` 업데이트 이후 브라우저는 화면을 리페인트합니다.
+- 리페인트 과정이 **브라우저 렌더링**이라고 알려있지만, 혼동을 막기 위해 우리는 **페인팅**이라는 단어를 사용할 겁니다.
+
+## 요약
+
+- `React`의 모든 화면 업데이트는 아래의 과정을 따릅니다.
+
+1. 렌더링 트리거 (`Trigger`)
+2. 렌더링 (`Rendering`)
+3. 렌더링 반영 (`Commit`)
+
+- Strict Mode를 활용하여 컴포넌트의 오류를 찾을 수 있습니다.
+- `React`는 변경된 부분에 한하여 `DOM`을 업데이트 합니다.
