@@ -1,0 +1,376 @@
+# State as a Snapshot
+
+- 상태 변수는 일반적인 `JS` 변수처럼 보일 수 있습니다.
+- 그러나 상태는 스냅샷 처럼 작동합니다.
+- 상태를 변경 이미 가지고 있는 상태는 변경되지 않고, 다시 렌더링을 실행합니다.
+
+## 배우게 될 것
+
+- 상태 변경이 어떻게 다시 렌더링을 실행하는지
+- 언제, 어떻게 상태가 업데이트되는지
+- 상태를 변경한 후에 상태값이 즉시 업데이트되지 않는 이유
+- 이벤트 핸들러가 어떻게 상태의 **스냅샷**에 접근하는지
+
+## 상태를 설정하며 렌더링
+
+- `UI`는 클릭과 같은 유저 활동에 의해 바로 변경될 것이라 생각할 수 있습니다.
+- 하지만 `React`는 그러한 방식으로 동작하지 않습니다.
+- 즉, `UI`가 이벤트에 반응하려면 **상태를 업데이트** 해야 합니다.
+  <br><br>
+- 예를 들어 `send` 버튼을 눌렀을 때, `setIsSent(true)`는 `React`에게 `UI`를 리렌더링을 요청합니다.
+
+```js
+import { useState } from 'react';
+
+export default function Form() {
+  const [isSent, setIsSent] = useState(false);
+  const [message, setMessage] = useState('Hi!');
+  if (isSent) {
+    return <h1>Your message is on its way!</h1>;
+  }
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        setIsSent(true);
+        sendMessage(message);
+      }}
+    >
+      <textarea
+        placeholder='Message'
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+      />
+      <button type='submit'>Send</button>
+    </form>
+  );
+}
+
+function sendMessage(message) {
+  // ...
+}
+```
+
+- 버튼을 클릭했을 때 벌어지는 일들을 다음과 같습니다.
+
+1. `onSubmit` 이벤트 핸들러가 실행됩니다.
+2. `setIsSent(true)`는 `isSent`를 `true`로 변경하고 새로운 렌더를 큐에 대기시킵니다.
+3. `React`는 새로운 `isSent`값에 따라 컴포넌트를 리렌더링합니다.
+
+- 상태와 렌더링 간의 관계를 조금 더 자세히 살펴볼까요?
+
+## 스냅샷을 찍는 렌더링
+
+- **렌더링**은 `React`가 함수형 컴포넌트를 호출하는 것을 의미합니다.
+- 함수에서 반환하는 `JSX`는 시간에 따른 `UI`의 스냅샷과 같습니다.
+- 컴포넌트의 `props`, 이벤트 핸들러, 지역 변수은 **렌더링 시점의 상태를 사용**하여 계산됩니다.
+  <br><br>
+- 사진이나 영화 프레임과는 다르게, 반환되는 `UI` **스냅샷**은 대화형으로 동작합니다.
+- 스냅샷은 이벤트 핸들러와 같은 로직을 포함합니다.
+- 이후 `React`는 스냅샷과 화면을 일치시키고 이벤트 핸들러를 연결합니다.
+- 결과적으로 버튼을 snfmaus `JSX`의 클릭 핸들러를 실행합니다.
+  <br><br>
+- `React`가 컴포넌트를 다시 렌더링할 때.
+
+1. `React`가 함수를 다시 호출합니다.
+2. 함수가 새 `JSX` 스냅샷을 반환합니다.
+3. 그런 다음 `React`는 반환된 스냅샷과 일치하도록 화면을 업데이트합니다.
+
+- 컴포넌트의 메모리인 상태는 함수가 반환된 후 사라지는 일반 변수와 다릅니다.
+- 함수 외부에 있는 것처럼 실제로 `React` 자체에 **살아**있습니다.
+- `React`가 컴포넌트를 호출하면 특정 렌더링의 상태에 대한 스냅샷을 제공합니다.
+- 컴포넌트는 **렌더링의 상태 값을 사용**하여 `JSX`의 새로운 `props`, 이벤트 핸들러, `UI`의 스냅샷을 반환합니다.
+
+- 동작을 설명하기 위한 작은 예제가 있습니다.
+- `+3`버튼을 클릭하면 `setNumber(number + 1)`를 3번 호출하기에, 카운터가 3번 증가할 것으로 예상할 수 있습니다.
+
+```js
+import { useState } from 'react';
+
+export default function Counter() {
+  const [number, setNumber] = useState(0);
+
+  return (
+    <>
+      <h1>{number}</h1>
+      <button
+        onClick={() => {
+          setNumber(number + 1);
+          setNumber(number + 1);
+          setNumber(number + 1);
+        }}
+      >
+        +3
+      </button>
+    </>
+  );
+}
+```
+
+- 결과적으로 `number`는 1번만 증가합니다.
+- **상태를 설정하면 다음 렌더링에 대해서만 변경**됩니다.
+- 첫 번째 렌더링을 하는동안, `number`는 `0`이었습니다.
+- 이것이 **첫 번째 렌더링의** `onClick` 핸들러에서 `setNumber(number + 1)`가 호출된 후에도 `number`의 값이 여전히 `0`인 이유입니다.
+
+```js
+<button
+  onClick={() => {
+    setNumber(number + 1);
+    setNumber(number + 1);
+    setNumber(number + 1);
+  }}
+>
+  +3
+</button>
+```
+
+<br>
+
+- 아래는 버튼의 클릭 핸들러가 전달하는 `React`가 해야 할 일들입니다.
+
+1. `setNumber(number + 1)`: `number` is `0` so `setNumber(0 + 1)`
+   - `React`는 다음 렌더링에서 `number`를 `1`로 변경할 준비를 합니다.
+2. `setNumber(number + 1)`: `number` is `0` so `setNumber(0 + 1)`
+   - `React`는 다음 렌더링에서 `number`를 `1`로 변경할 준비를 합니다.
+3. `setNumber(number + 1)`: `number` is `0` so `setNumber(0 + 1)`
+   - `React`는 다음 렌더링에서 `number`를 `1`로 변경할 준비를 합니다.
+
+- `setNumber(number + 1)`를 3번 호출했지만 렌더링의 이벤트 핸들러에서 `number`는 항상 `0`이므로 `state`를 `1`로 3번 설정합니다.
+
+<br>
+
+- 이것이 이벤트 핸들러가 완료된 후 `React`가 `3`이 아닌 `1`로 `number`로 컴포넌트를 다시 렌더링하는 이유입니다.
+
+```js
+<button
+  onClick={() => {
+    setNumber(0 + 1);
+    setNumber(0 + 1);
+    setNumber(0 + 1);
+  }}
+>
+  +3
+</button>
+```
+
+<br>
+
+- 다음 렌더링에서 `number`는 `1`이기에, 렌더링의 클릭 핸들러는 다음과 같습니다.
+
+```js
+<button
+  onClick={() => {
+    setNumber(1 + 1);
+    setNumber(1 + 1);
+    setNumber(1 + 1);
+  }}
+>
+  +3
+</button>
+```
+
+- 이것이 버튼을 다시 클릭하면 카운터가 `2`로 설정되고 다으로 `3`으로 설정되는 이유입니다.
+
+## 시간 경과에 따른 상태
+
+- 아래 버튼을 누르면 어떻게 될까요?
+
+```js
+import { useState } from 'react';
+
+export default function Counter() {
+  const [number, setNumber] = useState(0);
+
+  return (
+    <>
+      <h1>{number}</h1>
+      <button
+        onClick={() => {
+          setNumber(number + 5);
+          alert(number);
+        }}
+      >
+        +5
+      </button>
+    </>
+  );
+}
+```
+
+- 이전의 대체 메소드를 사용하면 경고창이 `0`을 표시한다고 추측할 수 있습니다.
+
+```js
+setNumber(0 + 5);
+alert(0);
+```
+
+<br>
+
+- 만약 타이머를 두어 컴포넌트가 리렌더링된 이후에 `alert`를 실행한다면 어떨까요?
+- `0`과 `5`중 어떤 것이 `alert` 될까요?
+
+```js
+import { useState } from 'react';
+
+export default function Counter() {
+  const [number, setNumber] = useState(0);
+
+  return (
+    <>
+      <h1>{number}</h1>
+      <button
+        onClick={() => {
+          setNumber(number + 5);
+          setTimeout(() => {
+            alert(number);
+          }, 3000);
+        }}
+      >
+        +5
+      </button>
+    </>
+  );
+}
+```
+
+- 신기하죠?
+- 대체 메서드를 사용해도 여전히 상태의 **스냅샷**을 기억하는 모습을 볼 수 있습니다.
+
+```js
+setNumber(0 + 5);
+setTimeout(() => {
+  alert(0);
+}, 3000);
+```
+
+- 시간이 지남에 따라 `React`에 저장된 상태는 변경될지 몰라도, 유저와 **상호작용한 상태의 스냅샷**은 저장되어 있습니다.
+  <br><br>
+- 이벤트 핸들러가 비동기로 동작하여도, **상태 변수의 값은 렌더링 도중에 절대 변경되지 않습니다.**
+- 렌더링의 `onClick` 내부에서 `setNumber(number + 5)`가 호출된 후에도 `number`의 값은 계속 `0`입니다.
+- `React가` 컴포넌트를 호출하여 `UI`의 **스냅샷을 찍었을 때**의 값이 **고정**되었습니다.
+  <br><br>
+- 다음은 이벤트 핸들러가 덜 실수하도록 만드는 예제입니다.
+- `5`초 딜레이 이후 메시지를 보내는 `form`입니다.
+- 시나리오를 상상해볼까요?
+
+1. `Send` 버튼을 클릭하여 `Alice`에게 **Hello** 인사를 보낸다.
+2. 5초가 지나기 전, `To` 필드의 값을 `Bob`으로 변경합니다.
+
+- 예측한 `alert` 값은 무엇인가요?
+- **You said Hello to Alice**와 **You said Hello to Bob** 중 무엇인가요?
+
+```js
+import { useState } from 'react';
+
+export default function Form() {
+  const [to, setTo] = useState('Alice');
+  const [message, setMessage] = useState('Hello');
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    setTimeout(() => {
+      alert(`You said ${message} to ${to}`);
+    }, 5000);
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <label>
+        To:{' '}
+        <select value={to} onChange={(e) => setTo(e.target.value)}>
+          <option value='Alice'>Alice</option>
+          <option value='Bob'>Bob</option>
+        </select>
+      </label>
+      <textarea
+        placeholder='Message'
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+      />
+      <button type='submit'>Send</button>
+    </form>
+  );
+}
+```
+
+<br>
+
+- `React`는 렌더링의 이벤트 핸들러 내에서 상태를 **고정**으로 유지합니다.
+- 코드가 실행되는 동안 상태가 변경될 걱정을 할 필요가 없습니다.
+  <br><br>
+
+## 요약
+
+- 상태를 변경하는 것은 새로운 렌더링을 요청합니다.
+- `React`는 컴포넌트 밖의 상태를 저장합니다.
+- `useState`를 호출할 때, `React`는 **해당 렌더링에 대한** 상태 스냅샷을 제공합니다.
+- 변수 및 이벤트 핸들러는 **생존**하여 다시 렌더링되는 것이 아닙니다.
+  - 모든 렌더링은 고유의 이벤트 핸들러가 존재합니다.
+- 모든 렌더링은 항상 `React`가 그 렌더링에 부여한 스냅샷을 **볼** 것입니다.
+- 렌더링 된 `JSX`에 대해 생각하는 방식과 유사하게 이벤트 핸들러에서 상태를 대체할 수 있습니다.
+- 이전에 생성된 이벤트 핸들러는 이전 생성되었을 당시 렌더링의 상태 변수를 가집니다.
+  <br>
+
+## 신호등 구현하기
+
+- 버튼이 눌릴 때 컴포넌트가 토글되는 신호등 컴포넌트가 있습니다.
+
+```js
+import { useState } from 'react';
+
+export default function TrafficLight() {
+  const [walk, setWalk] = useState(true);
+
+  function handleClick() {
+    setWalk(!walk);
+  }
+
+  return (
+    <>
+      <button onClick={handleClick}>Change to {walk ? 'Stop' : 'Walk'}</button>
+      <h1
+        style={{
+          color: walk ? 'darkgreen' : 'darkred',
+        }}
+      >
+        {walk ? 'Walk' : 'Stop'}
+      </h1>
+    </>
+  );
+}
+```
+
+- 클릭 핸들러에 `alert`를 추가합니다.
+- 신호등이 녹색이고 **Walk**라면 버튼을 클릭했을 때 **Stop is next**라고 표시되어야 합니다.
+- 표시등이 빨간색이고 **중지**라면 버튼을 클릭했을 때 **다음은 걷기**라고 표시되어야 합니다.
+- `setWalk` 호출 전 or 호출 후에 경고창을 설정하는지에 차이가 있을까요?
+
+```js
+import { useState } from 'react';
+
+export default function TrafficLight() {
+  const [walk, setWalk] = useState(true);
+
+  function handleClick() {
+    setWalk(!walk);
+    alert(walk ? 'Stop is next' : 'Walk is next');
+  }
+
+  return (
+    <>
+      <button onClick={handleClick}>Change to {walk ? 'Stop' : 'Walk'}</button>
+      <h1
+        style={{
+          color: walk ? 'darkgreen' : 'darkred',
+        }}
+      >
+        {walk ? 'Walk' : 'Stop'}
+      </h1>
+    </>
+  );
+}
+```
+
+- 경고창을 `setWalk` 어디에 배치하든 차이가 없습니다.
+- 렌더링의 `walk` 값은 고정되어 있습니다.
+- `setWalk`를 호출하면 다음 렌더링에 대해서만 변경되지만, 이전 렌더링의 이벤트 핸들러에 영향을 미치지 않습니다.
