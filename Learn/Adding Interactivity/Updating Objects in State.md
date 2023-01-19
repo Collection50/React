@@ -1,0 +1,734 @@
+# Updating Objects in State
+
+- 상태는 모든 종류의 `JS` 값을 가질 수 있습니다.
+- 하지만 `React`의 상태 객체를 직접 변경하면 안됩니다.
+- 객체를 업데이트하고 싶을 때는 새로운 객체를 생성하여 (또는 기존 객체의 복사본을 만들어), 상태가 복사본을 사용하도록 합니다.
+
+## 배우게 될 것
+
+- `React` 상태에서 객체를 올바르게 업데이트 하는 방법
+- 정첩 객체를 변경하지 않고 업데이트 하는 방법
+- 불변셩이란? 불변성을 지키는 방법
+- `Immer`로 반복을 줄여 객체를 복사하는 방법
+
+## 변경이란?
+
+- 상태는 모든 종류의 `JS` 값을 저장할 수 있습니다.
+
+```js
+const [x, setX] = useState(0);
+```
+
+<br>
+
+- 지금까지 숫자, 문자열, 불리언 값을 다루었습니다.
+- 이러한 `JS` 값들은 변경할 수 없거나 **읽기 전용**을 의미하는 **불변성**을 가집니다.
+- 값을 교체 하기 위해서는 리렌더링이 필요합니다.
+
+```js
+setX(5);
+```
+
+- `x` 상태는 `0`에서 `5`로 바뀌었지만, 숫자 `0` 자체는 바뀌지 않았습니다.
+- 숫자, 문자열, 불린과 같이 `JS`에 정의되어 있는 원시 값은 변경 불가합니다.
+- `상태`에 존재하는 아래 객체를 생각해보세요.
+
+```js
+const [position, setPosition] = useState({ x: 0, y: 0 });
+```
+
+<br><br>
+
+- 기술적으로 **객체 자체**의 내용은 바꿀 수 있습니다.
+- 이를 **변경**이라고 합니다.
+
+```js
+position.x = 5;
+```
+
+<br>
+
+- `React` 상태의 객체들이 기술적으로 변경 가능하더라도 변경 불가능한 원시 값처럼 다뤄야 합니다.
+- 그들을 변경하는 대신 **교체**해야 합니다.
+
+## 상태를 읽기 전용으로 다루라
+
+- 다른 말로, **상태에 저장되는 모든 `JS` 객체를 읽기 전용**으로 다뤄야 합니다.
+  <br><br>
+- 아래 예시에서 상태의 객체는 현재 포인터 위치를 나타냅니다.
+- 프리뷰 영역을 누르거나 커서를 움직일 때 빨간 점이 이동해야 합니다.
+- 하지만 점은 처음 위치에 머무릅니다.
+
+```js
+import { useState } from 'react';
+export default function MovingDot() {
+  const [position, setPosition] = useState({
+    x: 0,
+    y: 0,
+  });
+  return (
+    <div
+      onPointerMove={(e) => {
+        position.x = e.clientX;
+        position.y = e.clientY;
+      }}
+      style={{
+        position: 'relative',
+        width: '100vw',
+        height: '100vh',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          backgroundColor: 'red',
+          borderRadius: '50%',
+          transform: `translate(${position.x}px, ${position.y}px)`,
+          left: -10,
+          top: -10,
+          width: 20,
+          height: 20,
+        }}
+      />
+    </div>
+  );
+}
+```
+
+<br>
+
+- 문제는 아래 코드입니다.
+
+```js
+onPointerMove={e => {
+  position.x = e.clientX;
+  position.y = e.clientY;
+}}
+```
+
+- 위 코드는 `position`에 할당된 객체를 이전 렌더링에서 수정합니다.
+- 그러나 상태 `setter` 함수가 없으면 객체의 변경 여부를 알 수 없습니다.
+- 따라서 `React`는 아무 동작도 수행하지 않습니다.
+- 이는 식사를 한 뒤에 주문을 바꾸는 것과 같습니다.
+- 어떤 경우엔 동작할 수도 있지만, 권장하지 않습니다.
+- 렌더링 시 접근하려는 상태 값은 읽기 전용으로 다뤄야 합니다.
+  <br><br>
+- 이 경우 리렌더링하려면, 새 객체를 생성하여 상태 `setter` 함수에 전달해야 합니다.
+
+```js
+onPointerMove={e => {
+  setPosition({
+    x: e.clientX,
+    y: e.clientY
+  });
+}}
+```
+
+<br>
+
+- `setPosition`의 동작은 다음과 같습니다.
+
+1. `position`을 새로운 객체로 교체하라.
+2. 이 컴포넌트를 다시 렌더링해라.
+   <br><br>
+
+- 이제 프리뷰 영역을 누르거나 호버링하는 경우 빨간 점이 포인터를 따라옵니다.
+
+```js
+import { useState } from 'react';
+export default function MovingDot() {
+  const [position, setPosition] = useState({
+    x: 0,
+    y: 0,
+  });
+  return (
+    <div
+      onPointerMove={(e) => {
+        setPosition({
+          x: e.clientX,
+          y: e.clientY,
+        });
+      }}
+      style={{
+        position: 'relative',
+        width: '100vw',
+        height: '100vh',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          backgroundColor: 'red',
+          borderRadius: '50%',
+          transform: `translate(${position.x}px, ${position.y}px)`,
+          left: -10,
+          top: -10,
+          width: 20,
+          height: 20,
+        }}
+      />
+    </div>
+  );
+}
+```
+
+<br>
+
+## Deep Dive - 지역 변경은 괜찮아요!
+
+- 아래 코드는 상태에 존재하는 객체를 변경하기 때문에 문제됩니다.
+
+```js
+position.x = e.clientX;
+position.y = e.clientY;
+```
+
+<br>
+
+- 하지만 아래 코드는 **새로운 객체를 생성**해 교체하기 때문에 **적절합니다**.
+
+```js
+const nextPosition = {};
+nextPosition.x = e.clientX;
+nextPosition.y = e.clientY;
+setPosition(nextPosition);
+```
+
+- 위 코드와 동일 기능
+
+```js
+setPosition({
+  x: e.clientX,
+  y: e.clientY,
+});
+```
+
+<br>
+
+- 변경은 **이미 상태에 존재하는 객체를 변경**할 때만 문제됩니다.
+- 방금 만든 객체를 수정하는 것은 아직 **다른 코드가 객체를 참조하지 않기 때문에 괜찮습니다**.
+- 이것을 **지역 변경**이라고 합니다.
+- 렌더링 도중 지역 변경을 수행할 수 있으며, 유용합니다.
+
+## 스프레드 문법으로 객체 복사하기
+
+- 이전 예시에서 `position` 객체는 현재 커서 위치에서 항상 새롭게 생성됩니다.
+- 하지만 이미 존재하는 데이터를 생성하는 객체에 포함하고 싶을 수 있습니다.
+- 예를 들어 1개 `form`만 수정하고 나머지는 유지하는 경우입니다.
+  <br><br>
+- 아래 `input` 필드는 `onChange` 핸들러가 `state`를 변경하기 때문에 동작하지 않습니다.
+
+```js
+import { useState } from 'react';
+
+export default function Form() {
+  const [person, setPerson] = useState({
+    firstName: 'Barbara',
+    lastName: 'Hepworth',
+    email: 'bhepworth@sculpture.com',
+  });
+
+  function handleFirstNameChange(e) {
+    person.firstName = e.target.value;
+  }
+
+  function handleLastNameChange(e) {
+    person.lastName = e.target.value;
+  }
+
+  function handleEmailChange(e) {
+    person.email = e.target.value;
+  }
+
+  return (
+    <>
+      <label>
+        First name:
+        <input value={person.firstName} onChange={handleFirstNameChange} />
+      </label>
+      <label>
+        Last name:
+        <input value={person.lastName} onChange={handleLastNameChange} />
+      </label>
+      <label>
+        Email:
+        <input value={person.email} onChange={handleEmailChange} />
+      </label>
+      <p>
+        {person.firstName} {person.lastName} ({person.email})
+      </p>
+    </>
+  );
+}
+```
+
+- 예를 들어 아래 코드는 이전 렌더링의 상태를 변경합니다.
+
+```js
+person.firstName = e.target.value;
+```
+
+<br>
+
+- 원하는 동작을 하기 위해선 새로운 객체를 생성하여 `setPerson`에 전달해야 합니다.
+- 하지만 1개 필드가 바뀌었기 때문에 **다른 데이터를 복사**해야 합니다.
+
+```js
+setPerson({
+  firstName: e.target.value, // input의 새로운 first name
+  lastName: person.lastName,
+  email: person.email,
+});
+```
+
+<br>
+
+- 스프레드 문법(`...`)을 사용하면 모든 프로퍼티를 복사할 필요가 없습니다.
+
+```js
+setPerson({
+  ...person, // 이전 필드 복사
+  firstName: e.target.value, // 새로운 부분은 덮어쓰기
+});
+```
+
+<br>
+
+- 이제 `form`이 등장합니다.
+- 각 `input` 필드에 대해 분리된 상태를 선언하지 않았습니다.
+- 큰 `form`들을 올바르게 업데이트하면, 1개 객체에 모든 데이터를 그룹화하여 저장하는 것이 편리합니다.
+
+```js
+import { useState } from 'react';
+
+export default function Form() {
+  const [person, setPerson] = useState({
+    firstName: 'Barbara',
+    lastName: 'Hepworth',
+    email: 'bhepworth@sculpture.com',
+  });
+
+  function handleFirstNameChange(e) {
+    setPerson({
+      ...person,
+      firstName: e.target.value,
+    });
+  }
+
+  function handleLastNameChange(e) {
+    setPerson({
+      ...person,
+      lastName: e.target.value,
+    });
+  }
+
+  function handleEmailChange(e) {
+    setPerson({
+      ...person,
+      email: e.target.value,
+    });
+  }
+
+  return (
+    <>
+      <label>
+        First name:
+        <input value={person.firstName} onChange={handleFirstNameChange} />
+      </label>
+      <label>
+        Last name:
+        <input value={person.lastName} onChange={handleLastNameChange} />
+      </label>
+      <label>
+        Email:
+        <input value={person.email} onChange={handleEmailChange} />
+      </label>
+      <p>
+        {person.firstName} {person.lastName} ({person.email})
+      </p>
+    </>
+  );
+}
+```
+
+- 스프레드 문법은 **얕은 복사**입니다.
+- 1단계 깊이의 내용만 복사합니다.
+- 빠르지만, 중첩된 데이터를 업데이트 하는 경우 여러번 사용해야 합니다.
+
+## Deep Dive - 여러 필드에 대한 1개 이벤트 핸들러 사용하기
+
+- 대괄호`[]`를 객체 선언문 안에 사용하여 동적 이름을 가진 프로퍼티를 사용할 수 있습니다.
+- 아래예시는 전과 같지만, 1개 이벤트 핸들러를 사용합니다.
+
+```js
+import { useState } from 'react';
+
+export default function Form() {
+  const [person, setPerson] = useState({
+    firstName: 'Barbara',
+    lastName: 'Hepworth',
+    email: 'bhepworth@sculpture.com',
+  });
+
+  function handleChange(e) {
+    setPerson({
+      ...person,
+      [e.target.name]: e.target.value,
+    });
+  }
+
+  return (
+    <>
+      <label>
+        First name:
+        <input
+          name='firstName'
+          value={person.firstName}
+          onChange={handleChange}
+        />
+      </label>
+      <label>
+        Last name:
+        <input
+          name='lastName'
+          value={person.lastName}
+          onChange={handleChange}
+        />
+      </label>
+      <label>
+        Email:
+        <input name='email' value={person.email} onChange={handleChange} />
+      </label>
+      <p>
+        {person.firstName} {person.lastName} ({person.email})
+      </p>
+    </>
+  );
+}
+```
+
+- `e.target.name`은 `DOM` 엘리먼트 `<input>`의 `name` 프로퍼티입니다.
+
+## 중첩된 객체의 업데이트
+
+- 아래와 같은 중첩 객체를 생각해 볼까요?
+
+```js
+const [person, setPerson] = useState({
+  name: 'Niki de Saint Phalle',
+  artwork: {
+    title: 'Blue Nana',
+    city: 'Hamburg',
+    image: 'https://i.imgur.com/Sd1AgUOm.jpg',
+  },
+});
+```
+
+<br>
+
+- `person.artwork.city를` 업데이트하고 싶다면, 변경하는 방법은 명확합니다.
+
+```js
+person.artwork.city = 'New Delhi';
+```
+
+<br>
+
+- 하지만 상태를 **변경할 수 없는 것**으로 다루어야 합니다!
+- `city`를 바꾸기 위해서는 새로운 `artwork` 객체를 생성한 뒤, 새로운 `person` 객체를 만들어야 합니다.
+- 즉, 중첩된 객체 개수만큼 새로운 객체를 만들어야 합니다.
+
+```js
+const nextArtwork = { ...person.artwork, city: 'New Delhi' };
+const nextPerson = { ...person, artwork: nextArtwork };
+setPerson(nextPerson);
+```
+
+<br>
+
+- 함수 호출도 가능합니다.
+
+```js
+setPerson({
+  ...person, // 다른 필드 복사
+  artwork: {
+    // artwork 교체
+    ...person.artwork, // 동일한 값 사용
+    city: 'New Delhi', // 하지만 New Delhi!
+  },
+});
+```
+
+<br>
+
+- 아래 방법은 코드가 길어지지만 정상적으로 동작합니다.
+
+```js
+import { useState } from 'react';
+
+export default function Form() {
+  const [person, setPerson] = useState({
+    name: 'Niki de Saint Phalle',
+    artwork: {
+      title: 'Blue Nana',
+      city: 'Hamburg',
+      image: 'https://i.imgur.com/Sd1AgUOm.jpg',
+    },
+  });
+
+  function handleNameChange(e) {
+    setPerson({
+      ...person,
+      name: e.target.value,
+    });
+  }
+
+  function handleTitleChange(e) {
+    setPerson({
+      ...person,
+      artwork: {
+        ...person.artwork,
+        title: e.target.value,
+      },
+    });
+  }
+
+  function handleCityChange(e) {
+    setPerson({
+      ...person,
+      artwork: {
+        ...person.artwork,
+        city: e.target.value,
+      },
+    });
+  }
+
+  function handleImageChange(e) {
+    setPerson({
+      ...person,
+      artwork: {
+        ...person.artwork,
+        image: e.target.value,
+      },
+    });
+  }
+
+  return (
+    <>
+      <label>
+        Name:
+        <input value={person.name} onChange={handleNameChange} />
+      </label>
+      <label>
+        Title:
+        <input value={person.artwork.title} onChange={handleTitleChange} />
+      </label>
+      <label>
+        City:
+        <input value={person.artwork.city} onChange={handleCityChange} />
+      </label>
+      <label>
+        Image:
+        <input value={person.artwork.image} onChange={handleImageChange} />
+      </label>
+      <p>
+        <i>{person.artwork.title}</i>
+        {' by '}
+        {person.name}
+        <br />
+        (located in {person.artwork.city})
+      </p>
+      <img src={person.artwork.image} alt={person.artwork.title} />
+    </>
+  );
+}
+```
+
+## Deep Dive - 객체가 실제로는 중첩되지 않을 때
+
+<br>
+
+- 중첩된 객체가 있습니다.
+
+```js
+const obj = {
+  name: 'Niki de Saint Phalle',
+  artwork: {
+    title: 'Blue Nana',
+    city: 'Hamburg',
+    image: 'https://i.imgur.com/Sd1AgUOm.jpg',
+  },
+};
+```
+
+<br>
+
+- 하지만 **중첩**은 객체의 동작에 대해 생각할 때 적절하지 않습니다.
+- 코드가 실행될 때, **중첩**된 객체는 없습니다.
+- 2개의 다른 객체입니다.
+
+```js
+const obj1 = {
+  title: 'Blue Nana',
+  city: 'Hamburg',
+  image: 'https://i.imgur.com/Sd1AgUOm.jpg',
+};
+
+const obj2 = {
+  name: 'Niki de Saint Phalle',
+  artwork: obj1,
+};
+
+const obj3 = {
+  name: 'Copycat',
+  artwork: obj1,
+};
+```
+
+<br>
+
+- `obj1` 객체는 `obj2` **밖**에 있습니다.
+- `obj3`도 `obj1`을 **가리킬** 수 있습니다.
+
+- 만약 `obj3.artwork.city`을 변경한다면, `obj2.artwork.city`와 `obj1.city` 모두에 영향을 미칠 것입니다.
+- 이는 `obj3.artwork`, `obj2.artwork`와 `obj1`이 **같은** 객체이기 때문입니다.
+- 객체를 **중첩된** 것으로 생각하면 이해하기 어려울 것입니다.
+- 프로퍼티를 통해 서로를 **가리키는** 각각의 객체입니다.
+
+## Immer로 간결한 업데이트 로직 작성하기
+
+- 상태가 많이 중첩되어있다면 **평탄화**를 해볼까요?
+- 상태 구조를 바꾸고 싶지 않다면, 중첩된 상태를 전개할 수 있는 더 간편한 방법이 있습니다.
+- `Immer`는 편리하고, 변경할 수 있게 해주며 복사본 생성을 도와주는 인기 있는 라이브러리입니다.
+- `Immer`를 사용하면 작성한 코드는 **법칙을 깨고** 객체를 변경하는 것처럼 보일 수 있습니다.
+
+```js
+updatePerson((draft) => {
+  draft.artwork.city = 'Lagos';
+});
+```
+
+- 하지만 일반적인 변경처럼, 이전 상태를 덮어쓰진 않는답니다.
+
+## Immer는 어떻게 동작하나요?
+
+- `Immer`가 제공하는 `draft`는 `Proxy`라고 하는 아주 특별한 객체 타입으로, 당신이 하는 일을 **기록** 합니다.
+- 객체를 원하는 만큼 자유롭게 변경할 수 있는 이유죠!
+- `Immer`는 내부적으로 `draft`의 어느 부분이 변경되었는지 알아내어, **변경사항을 포함한 완전히 새로운 객체**를 생성합니다.
+  <br><br>
+- Immer 사용법
+
+1. `package.json`에 `dependency`로 `use-immer`를 추가하세요
+2. `npm install`을 실행하세요
+3. `import { useState } from 'react'`를 `import { useImmer } from 'use-immer'`로 교체하세요.
+
+```js
+import { useImmer } from 'use-immer';
+
+export default function Form() {
+  const [person, updatePerson] = useImmer({
+    name: 'Niki de Saint Phalle',
+    artwork: {
+      title: 'Blue Nana',
+      city: 'Hamburg',
+      image: 'https://i.imgur.com/Sd1AgUOm.jpg',
+    },
+  });
+
+  function handleNameChange(e) {
+    updatePerson((draft) => {
+      draft.name = e.target.value;
+    });
+  }
+
+  function handleTitleChange(e) {
+    updatePerson((draft) => {
+      draft.artwork.title = e.target.value;
+    });
+  }
+
+  function handleCityChange(e) {
+    updatePerson((draft) => {
+      draft.artwork.city = e.target.value;
+    });
+  }
+
+  function handleImageChange(e) {
+    updatePerson((draft) => {
+      draft.artwork.image = e.target.value;
+    });
+  }
+
+  return (
+    <>
+      <label>
+        Name:
+        <input value={person.name} onChange={handleNameChange} />
+      </label>
+      <label>
+        Title:
+        <input value={person.artwork.title} onChange={handleTitleChange} />
+      </label>
+      <label>
+        City:
+        <input value={person.artwork.city} onChange={handleCityChange} />
+      </label>
+      <label>
+        Image:
+        <input value={person.artwork.image} onChange={handleImageChange} />
+      </label>
+      <p>
+        <i>{person.artwork.title}</i>
+        {' by '}
+        {person.name}
+        <br />
+        (located in {person.artwork.city})
+      </p>
+      <img src={person.artwork.image} alt={person.artwork.title} />
+    </>
+  );
+}
+```
+
+- 엄청나게 간결해진 이벤트 핸들러를 볼까요?
+- 1개 컴포넌트에서 `useState`, `useImmer`를 섞어 사용할 수 있습니다.
+- `Immer`는 업데이트 핸들러를 관리하는 좋은 방법입니다.
+- 특히 상태가 중첩되었고, 객체 복사가 중복되는 경우에 유용합니다.
+
+## React에서 상태의 변경을 권장하지 않는 이유가 무엇일까요?
+
+- **디버깅**
+  - 만약 `console.log`를 사용하고 상태를 변경하지 않는다면, 과거 로그들은 상태 변경에 의해 없어지지 않습니다.
+  - 따라서 상태가 렌더링 사이에 어떻게 바뀌었는지 명확하게 알 수 있습니다.
+- **최적화**
+  - 보편적인 `React` 최적화 전략은 이전 `props` or 상태가 변경되지 않는 경우입니다.
+  - 상태를 절대 변경하지 않는다면 변경사항이 있었는지 확인하는 작업이 매우 빨라집니다.
+  - `prevObj === obj`를 통해 내부적으로 아무것도 바뀌지 않았음을 확인할 수 있습니다.
+- **새로운 기능**
+  - 새로운 `React` 기능들은 **스냅샷**처럼 다루어지는 것에 의존합니다.
+  - 상태의 과거 버전을 변경한다면, 새로운 기능을 사용하지 못할 수 있습니다.
+- **요구사항 변화**
+  - 취소/복원 구현, 변화 내역 조회, 사용자가 이전 값으로 폼을 재설정하기 등의 기능은 **아무것도 변경되지 않았을 때** 더 쉽습니다.
+  - 왜냐하면 메모리에 **상태의 복사본을 저장**하여 적절한 상황에 다시 사용할 수 있기 때문입니다.
+  - 객체를 변경한다면 이러한 기능들은 나중에 추가하기 어려울 수 있습니다.
+- **더 간단한 구현**
+  - `React`는 변경에 의존하지 않기 때문에 객체로 뭔가 특별한 것을 할 필요가 없습니다.
+  - 프로퍼티를 가져오거나, 항상 프록시로 감싸거나, 다른 많은 **반응형** 솔루션이 그러듯 초기화 시에 다른 작업을 하지 않아도 됩니다.
+  - 상태 크기, 추가 성능. 정확성 문제에 관계 없이 모든 객체를 사용할 수 있게 합니다.
+
+<br>
+
+- 실제로, `React`에서 상태를 변경하며 코딩할 수 있습니다. (쉬운 길을 선택하며 도망치는 것이지만요^^)
+- 그렇게 하지 않기를 권장함으로써 새로운 리액트 기능들을 사용할 수 있기를 바랍니다.
+- 어쩌면 미래의 당신 스스로까지 고마워할 걸요?!
+
+## 요약
+
+- 모든 상태를 변경 불가능한 것으로 다루세요.
+- 상태에 객체를 저장할 때, 객체를 변경하는 것은 렌더링을 발생시키지 않으며 이전 렌더링의 **스냅샷** 상태를 바꿀 것입니다.
+- 객체를 변경하는 대신 새로운 객체를 생성하여 상태를 설정함으로써 리렌더링을 합니다.
+- 객체의 복사본을 만들기 위해 `{...obj, something: 'newValue'}` 스프레드 문법을 사용할 수 있습니다.
+- 스프레드 문법은 얕은 복사입니다.
+  - 1단계 깊이만 복사합니다.
+- 중첩된 객체를 업데이트하려면 모든 항목의 복사본을 만들어야 합니다.
+- 반복적인 복사 코드를 줄이기 위해서 `Immer`를 사용하세요.
