@@ -1,0 +1,590 @@
+# Updating Arrays in State
+
+- 배열은 `JS` 내의 변경 가능한 값이지만, 상태에 저장할 때는 변경 불가능한 값으로 다뤄야 합니다.
+- 객체와 마찬가지로 상태의 배열을 변경하고 싶다면 새 배열을 생성(혹은 복사본을 생성)한 다음 사용하도록 상태를 업데이트해야 합니다.
+
+## 배우게 될 것
+
+- `React` 상태의 배열에서 추가, 삭제, 변경하는 방법
+- 배열 내의 객체를 업데이트 하는 방법
+- `Immer`를 활용하여 덜 반복적으로 배열을 복사하는 방법
+
+## 변경 없이 배열 업데이트 하기
+
+- `JS`에서 **배열은 객체**입니다.
+- 객체처럼, 상태의 **배열은 읽기 전용**으로 다뤄야 합니다.
+- 즉, `arr[0] = 'bird'`와 같이 재할당 할 수 없으며, `push`, `pop`와 같은 배열 변경 메서드를 사용할 수 없습니다.
+  <br><br>
+- 대신, 배열을 업데이트 할 때마다 상태 `setter` 함수에 새로운 배열을 전달하면 됩니다.
+- 원본 배열을 변경하지 않는 `filter`, `map` 등의 함수를 활용하여 새로운 배열을 생성합니다.
+  <br><br>
+- 아래는 자주 사용되는 배열 함수입니다.
+- 상태에 존재하는 배열을 다룰 때, 왼쪽은 지양하고 오른쪽 함수의 사용을 권장합니다.
+
+|      | **지양(원본 배열 변경)**            | 권장(새로운 배열 생성)               |
+| ---- | ----------------------------------- | ------------------------------------ |
+| 추가 | `push`, `unshift`                   | `concat`, `[...arr]` (스프레드 문법) |
+| 삭제 | `pop`, `push`, `splice`             | `filter`, `map`                      |
+| 교체 | `splice`, `arr[i] = x` (assingment) | `map`                                |
+| 정렬 | `reverse`, `sort`                   | 정렬 전 복사 선행                    |
+
+- `Immer`를 사용한다면 양쪽 모두 사용 가능합니다.
+
+## 배열에 값 추가
+
+- `push`는 배열을 **변경**합니다.
+
+```js
+import { useState } from 'react';
+
+let nextId = 0;
+
+export default function List() {
+  const [name, setName] = useState('');
+  const [artists, setArtists] = useState([]);
+
+  return (
+    <>
+      <h1>Inspiring sculptors:</h1>
+      <input value={name} onChange={(e) => setName(e.target.value)} />
+      <button
+        onClick={() => {
+          setName('');
+          artists.push({
+            id: nextId++,
+            name: name,
+          });
+        }}
+      >
+        Add
+      </button>
+      <ul>
+        {artists.map((artist) => (
+          <li key={artist.id}>{artist.name}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+<br>
+
+- 기존 요소 + 새로운 값을 넣는 새로운 배열을 생성하는 방법이 더 좋습니다.
+- 여러가지 방법이 존재하지만, 스프레드 문법을 사용하는 것이 제일 쉽습니다.
+
+```js
+setArtists(
+  // 상태 변경
+  [
+    // 새로운 배열 생성
+    ...artists, // 기존 배열의 값 유지
+    { id: nextId++, name: name }, // 새로운 요소 1개 추가
+  ]
+);
+```
+
+<br>
+
+```js
+import { useState } from 'react';
+
+let nextId = 0;
+
+export default function List() {
+  const [name, setName] = useState('');
+  const [artists, setArtists] = useState([]);
+
+  return (
+    <>
+      <h1>Inspiring sculptors:</h1>
+      <input value={name} onChange={(e) => setName(e.target.value)} />
+      <button
+        onClick={() => {
+          setName('');
+          setArtists([...artists, { id: nextId++, name: name }]);
+        }}
+      >
+        Add
+      </button>
+      <ul>
+        {artists.map((artist) => (
+          <li key={artist.id}>{artist.name}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+<br>
+
+- 스프레드 문법을 사용하면 요소 맨 앞에 추가하는 것도 가능합니다.
+- 스프레드 문법은 `push`, `unshift` 모두 사용 가능합니다.
+
+```js
+setArtists([
+  { id: nextId++, name: name },
+  ...artists, // 맨 앞에 새로운 요소 추가
+]);
+s;
+```
+
+## 배열의 값 삭제
+
+- 배열에서 값을 삭제하는 가장 쉬운 방법은 `filter`를 사용하는 것입니다.
+- 쉽게 설명하자면, 해당 값을 제외한 새로운 배열의 생성입니다.
+
+```js
+import { useState } from 'react';
+
+let initialArtists = [
+  { id: 0, name: 'Marta Colvin Andrade' },
+  { id: 1, name: 'Lamidi Olonade Fakeye' },
+  { id: 2, name: 'Louise Nevelson' },
+];
+
+export default function List() {
+  const [artists, setArtists] = useState(initialArtists);
+
+  return (
+    <>
+      <h1>Inspiring sculptors:</h1>
+      <ul>
+        {artists.map((artist) => (
+          <li key={artist.id}>
+            {artist.name}{' '}
+            <button
+              onClick={() => {
+                setArtists(artists.filter((a) => a.id !== artist.id));
+              }}
+            >
+              Delete
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+<br>
+
+## 배열 변환
+
+- 배열의 일부 or 전체 요소를 변경하는 경우 `map` 함수를 활용하여 **새로운** 배열을 생성합니다.
+- `map`에 전달하는 함수는 요소의 인덱스, 값을 활용해 새로운 요소를 결정합니다.
+  <br><br>
+- 아래 예시는 2개 원, 1개 정사각형의 좌표가 배열에 존재합니다.
+- 버튼을 클릭할 때마다 원은 50 픽셀씩 아래로 내려갑니다.
+- `map`을 활용해 새로운 배열을 만들면서 진행됩니다.
+
+## 배열의 값 교체
+
+- 배열의 값을 교체하고 싶을 때가 있습니다.
+- `arr[0] = 'bird'`과 같은 할당은 원본 배열을 변경하기에, `map` 함수를 활용해야 합니다.
+  <br><br>
+- 요소를 변경하기 위해 `map`을 활용하여 새 배열을 생성합니다.
+- `map`의 인수로 값과 인덱스를 활용할 수 있습니다.
+
+```js
+import { useState } from 'react';
+
+let initialCounters = [0, 0, 0];
+
+export default function CounterList() {
+  const [counters, setCounters] = useState(initialCounters);
+
+  function handleIncrementClick(index) {
+    const nextCounters = counters.map((c, i) => (i === index ? c + 1 : c));
+    setCounters(nextCounters);
+  }
+
+  return (
+    <ul>
+      {counters.map((counter, i) => (
+        <li key={i}>
+          {counter}
+          <button
+            onClick={() => {
+              handleIncrementClick(i);
+            }}
+          >
+            +1
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## 배열에 값 추가하기
+
+- 배열의 특정 위치에 값을 추가할 때가 존재합니다.
+- 이는 스프레드 문법(`...`)과 `slice` 메서드를 사용합니다.
+- `slice` 메서드는 배열을 **자릅니다.**
+- 새로운 값을 추가하기 위해 스프레드 문법(`...`)과 `slice` 메서드를 사용하는 법은 아래와 같습니다.
+
+```js
+import { useState } from 'react';
+
+let nextId = 3;
+const initialArtists = [
+  { id: 0, name: 'Marta Colvin Andrade' },
+  { id: 1, name: 'Lamidi Olonade Fakeye' },
+  { id: 2, name: 'Louise Nevelson' },
+];
+
+export default function List() {
+  const [name, setName] = useState('');
+  const [artists, setArtists] = useState(initialArtists);
+
+  function handleClick() {
+    const insertAt = 1;
+    const nextArtists = [
+      ...artists.slice(0, insertAt),
+      { id: nextId++, name: name },
+      ...artists.slice(insertAt),
+    ];
+    setArtists(nextArtists);
+    setName('');
+  }
+
+  return (
+    <>
+      <h1>Inspiring sculptors:</h1>
+      <input value={name} onChange={(e) => setName(e.target.value)} />
+      <button onClick={handleClick}>Insert</button>
+      <ul>
+        {artists.map((artist) => (
+          <li key={artist.id}>{artist.name}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+## 배열을 변경하는 다른 방법들
+
+- 원본 배열을 변경하지 않는 메서드를 사용할 수 없을 때가 있습니다.
+- 예를 들어 배열 반전 or 정렬의 경우입니다.
+- `JS`의 `reverse`, `sort` 메서드는 원본 배열을 변경합니다.
+- 따라서 **배열의 복사를 선행한 후 사용합니다.**
+
+```js
+import { useState } from 'react';
+
+let nextId = 3;
+const initialList = [
+  { id: 0, title: 'Big Bellies' },
+  { id: 1, title: 'Lunar Landscape' },
+  { id: 2, title: 'Terracotta Army' },
+];
+
+export default function List() {
+  const [list, setList] = useState(initialList);
+
+  function handleClick() {
+    const nextList = [...list];
+    nextList.reverse();
+    setList(nextList);
+  }
+
+  return (
+    <>
+      <button onClick={handleClick}>Reverse</button>
+      <ul>
+        {list.map((artwork) => (
+          <li key={artwork.id}>{artwork.title}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+- 스프레드 문법을 사용하여 원본 배열 복사를 선행하였습니다.
+- `reverse`, `sort`를 사용하거나 `nextList[0] = "something"`과 같이 개별적 할당이 가능합니다.
+  <br><br>
+- 하지만 **배열을 복사했더라도 배열의 값을 직접 변경하면 안 됩니다.**
+- 얕은 복사이기 때문입니다.
+- 따라서 배열 내의 객체를 수정한다면 **이미 존재하는** 상태 객체를 수정하는 것과 동일합니다.
+
+```js
+const nextList = [...list];
+nextList[0].seen = true; // Problem: mutates list[0]
+setList(nextList);
+```
+
+<br>
+
+- `nextList`와 `list`는 다른 배열임에도 불구하고, `nextList[0]`, `list[0]`는 **같은 객체**를 가리킵니다.
+- `nextList[0].seen`을 변경하는 것은 `list[0].seen`을 변경하는 것입니다.
+- 이러한 사용은 상태 변경으로 취급되므로 지양해야 합니다.
+- 이는 각각의 배열 요소를 복사하여 해결할 수 있습니다.
+
+## 배열 내의 객체 업데이트 하기
+
+- 사실, 객체는 배열 **안**에 존재하는 것이 아닙니다.
+- 코드에선 배열 안에 존재하는 것처럼 보이지만, 각 객체는 **포인터**로 관리됩니다.
+- 배열에 존재하는 객체의 값을 변경할 때 조심해야 하는 이유입니다.
+  <br><br>
+- 중첩된 상태를 업데이트 할 때는 **업데이트 지점부터 최상위 레벨까지 모두 복사하여 사용**해야 합니다.
+  <br><br>
+- 아래 예제에서 2개의 `artwork` `list`는 같은 초기 상태를 갖고 있습니다. (`initialList`)
+- 이 둘은 분리되어야 하지만 변경으로 인해 상태가 공유되고 있고 체크 박스의 선택이 서로에게 영향을 미칩니다.
+
+```js
+import { useState } from 'react';
+
+let nextId = 3;
+const initialList = [
+  { id: 0, title: 'Big Bellies', seen: false },
+  { id: 1, title: 'Lunar Landscape', seen: false },
+  { id: 2, title: 'Terracotta Army', seen: true },
+];
+
+export default function BucketList() {
+  const [myList, setMyList] = useState(initialList);
+  const [yourList, setYourList] = useState(initialList);
+
+  function handleToggleMyList(artworkId, nextSeen) {
+    const myNextList = [...myList];
+    const artwork = myNextList.find((a) => a.id === artworkId);
+    artwork.seen = nextSeen;
+    setMyList(myNextList);
+  }
+
+  function handleToggleYourList(artworkId, nextSeen) {
+    const yourNextList = [...yourList];
+    const artwork = yourNextList.find((a) => a.id === artworkId);
+    artwork.seen = nextSeen;
+    setYourList(yourNextList);
+  }
+
+  return (
+    <>
+      <h1>Art Bucket List</h1>
+      <h2>My list of art to see:</h2>
+      <ItemList artworks={myList} onToggle={handleToggleMyList} />
+      <h2>Your list of art to see:</h2>
+      <ItemList artworks={yourList} onToggle={handleToggleYourList} />
+    </>
+  );
+}
+
+function ItemList({ artworks, onToggle }) {
+  return (
+    <ul>
+      {artworks.map((artwork) => (
+        <li key={artwork.id}>
+          <label>
+            <input
+              type="checkbox"
+              checked={artwork.seen}
+              onChange={(e) => {
+                onToggle(artwork.id, e.target.checked);
+              }}
+            />
+            {artwork.title}
+          </label>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+<br>
+
+- 문제가 되는 코드는 아래와 같습니다.
+
+```js
+const myNextList = [...myList];
+const artwork = myNextList.find((a) => a.id === artworkId);
+artwork.seen = nextSeen; // Problem: mutates an existing item
+setMyList(myNextList);
+```
+
+<br>
+
+- `myNextList`는 새로운 배열이지만 각 요소는 원본 배열인 `myList`의 값입니다.
+- `artwork.seen`의 변경은 원본 값의 변경입니다.
+- 원본 값은 `yourArtworks`의 값과도 동일하므로 버그가 발생합니다.
+- 버그를 예측하는 것은 어렵기에, 상태 변경을 지양해야 합니다.
+  <br><br>
+- `map`을 활용하여 변경 없이 새 배열을 생성할 수 있습니다.
+
+```js
+setMyList(
+  myList.map((artwork) =>
+    artwork.id === artworkId ? { ...artwork, seen: nextSeen } : artwork
+  )
+);
+```
+
+- 스프레드 문법은 객체의 복사에 사용됩니다.
+- 이 방법을 사용하면 기존 상태를 변경하지 않기에 버그 발생하지 않습니다.
+
+```js
+import { useState } from 'react';
+
+let nextId = 3;
+const initialList = [
+  { id: 0, title: 'Big Bellies', seen: false },
+  { id: 1, title: 'Lunar Landscape', seen: false },
+  { id: 2, title: 'Terracotta Army', seen: true },
+];
+
+export default function BucketList() {
+  const [myList, setMyList] = useState(initialList);
+  const [yourList, setYourList] = useState(initialList);
+
+  function handleToggleMyList(artworkId, nextSeen) {
+    setMyList(
+      myList.map((artwork) =>
+        artwork.id === artworkId ? { ...artwork, seen: nextSeen } : artwork
+      )
+    );
+  }
+
+  function handleToggleYourList(artworkId, nextSeen) {
+    setMyList(
+      yourList.map((artwork) =>
+        artwork.id === artworkId ? { ...artwork, seen: nextSeen } : artwork
+      )
+    );
+  }
+
+  return (
+    <>
+      <h1>Art Bucket List</h1>
+      <h2>My list of art to see:</h2>
+      <ItemList artworks={myList} onToggle={handleToggleMyList} />
+      <h2>Your list of art to see:</h2>
+      <ItemList artworks={yourList} onToggle={handleToggleYourList} />
+    </>
+  );
+}
+
+function ItemList({ artworks, onToggle }) {
+  return (
+    <ul>
+      {artworks.map((artwork) => (
+        <li key={artwork.id}>
+          <label>
+            <input
+              type="checkbox"
+              checked={artwork.seen}
+              onChange={(e) => {
+                onToggle(artwork.id, e.target.checked);
+              }}
+            />
+            {artwork.title}
+          </label>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+- 일반적으로 **방금 생성한 객체만 변경해야 합니다.**
+- **새로운** `artwork`를 삽입하는 경우엔 변경할 수 있지만, 이미 존재하는 상태를 다루는 경우엔 복사가 선행되어야 합니다.
+
+## Immer를 활용하여 효율적으로 업데이트 하기
+
+- 부수효과 없이 중첩 배열을 업데이트하면 반복이 필요합니다. (객체와 동일)
+- 일반적으로 일정 레벨 이상으로 깊게 업데이트하는 경우가 많지 않습니다.
+  - 상태 객체의 중첩이 많다면 `flat`하게 구조를 리팩토링 할 것입니다.
+- 상태의 구조를 변경하고 싶지 않다면 `Immer`를 사용하는 것이 좋습니다.
+  <br><br>
+- `Immer`를 활용하여 리팩토링한 `Art Bucket`입니다.
+
+```js
+import { useState } from 'react';
+import { useImmer } from 'use-immer';
+
+let nextId = 3;
+const initialList = [
+  { id: 0, title: 'Big Bellies', seen: false },
+  { id: 1, title: 'Lunar Landscape', seen: false },
+  { id: 2, title: 'Terracotta Army', seen: true },
+];
+
+export default function BucketList() {
+  const [myList, updateMyList] = useImmer(initialList);
+  const [yourArtworks, updateYourList] = useImmer(initialList);
+
+  function handleToggleMyList(id, nextSeen) {
+    updateMyList((draft) => {
+      const artwork = draft.find((a) => a.id === id);
+      artwork.seen = nextSeen;
+    });
+  }
+
+  function handleToggleYourList(artworkId, nextSeen) {
+    updateYourList((draft) => {
+      const artwork = draft.find((a) => a.id === artworkId);
+      artwork.seen = nextSeen;
+    });
+  }
+
+  return (
+    <>
+      <h1>Art Bucket List</h1>
+      <h2>My list of art to see:</h2>
+      <ItemList artworks={myList} onToggle={handleToggleMyList} />
+      <h2>Your list of art to see:</h2>
+      <ItemList artworks={yourArtworks} onToggle={handleToggleYourList} />
+    </>
+  );
+}
+
+function ItemList({ artworks, onToggle }) {
+  return (
+    <ul>
+      {artworks.map((artwork) => (
+        <li key={artwork.id}>
+          <label>
+            <input
+              type="checkbox"
+              checked={artwork.seen}
+              onChange={(e) => {
+                onToggle(artwork.id, e.target.checked);
+              }}
+            />
+            {artwork.title}
+          </label>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+- `Immer`를 사용하면 `artwork.seen = nextSeen`과 같은 할당문이 가능합니다.
+
+```js
+updateMyTodos((draft) => {
+  const artwork = draft.find((a) => a.id === artworkId);
+  artwork.seen = nextSeen;
+});
+```
+
+- 원본을 변경하는 것이 아니라 `Immer`의 특별 `draft` 객체를 변경하는 것입니다.
+- 마찬가지로 `push`, `pop`을 사용할 수 있습니다.
+  <br><br>
+- 내부적으로 `Immer`는 `draft`의 변경에 따라 처음부터 다음 상태를 구성합니다.
+- `Immer`를 사용하면 이벤트 핸들러를 매우 간결하게 유지할 수 있습니다.
+
+## 요약
+
+- 상태 안에 배열을 사용할 수 있으나 변경하면 안 됩니다.
+- 배열을 변경하는 대신, 새로운 배열을 만들고 상태를 업데이트 합니다.
+- 새 배열을 만드는 방법으로 `[...arr, newItem]` 같은 스프레드 문법을 사용합니다.
+- 배열의 필터링, 변환을 위해 `filter`, `map` 메서드를 사용합니다.
+- `Immer`를 활용하여 코드를 효율적으로 작성할 수 있습니다.
