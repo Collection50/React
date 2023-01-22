@@ -1,0 +1,794 @@
+# Choosing the State Structure
+
+- 상태의 구조화는 수정 및 디버깅하기 좋은 컴포넌트를 만들 수 있습니다.
+- 이번 챕터는 상태 구조화의 몇 가지 팁에 대해 다룰 겁니다.
+
+## 배우게 될 것
+
+- 단일 변수 혹은 여러 변수를 사용해야 할 때
+- 상태를 구성할 때 피해야할 것
+- 상태 구조의 일반적 이슈를 해결하는 방법
+
+## 상태 구조화 규칙
+
+- 여러 상태를 사용하는 컴포넌트를 작성할 때, 데이터의 사용 목적에 따라 상태 변수의 개수에 대해 고민합니다.
+- 최적화되지 않은 상태 구조에서도 동작하는 프로그램을 작성할 수 있지만, 더 좋은 프로그래밍을 위한 원칙이 존재합니다.
+
+1. 연관된 상태의 그룹화
+   - 2개 이상의 변수를 동시에 업데이트 하는 경우, 1개의 상태 변수로 합치는 것이 좋습니다.
+2. 상태의 모순 방지
+   - 상태가 모순적이고 불일치한 방식으로 구조화되면 오류가 발생할 가능성이 커집니다.
+3. 불필요한 상태 제거
+   - 렌더링 도중 컴포넌트의 `props` 혹은 기존 상태 변수 데이터를 다룬다면, 컴포넌트 상태 변수에 데이터를 저장하면 안 됩니다.
+4. 상태에서 중복 방지
+   - 여러 상태 변수 혹은 중첩 객체에 데이터가 중복된다면 동기화하기 어렵습니다.
+   - 중복을 최대한 줄여야 합니다.
+5. 깊게 중첩된 상태 방지
+   - 깊이 중첩된 상태의 경우 업데이트 하기 굉장히 어렵습니다.
+   - 가능한 `flat`한 방식으로 상태를 유지해야 합니다.
+
+- 이러한 규칙의 목표는 **실수 없이 상태를 관리하기 위함**입니다.
+- 불필요하고 중복된 데이터를 제거하면 모든 부분이 동기화된 상태로 유지됩니다.
+- DB 엔지니어가 버그를 줄이기 위해 **정규화**를 수행하는 방법과 유사합니다.
+
+## 연관된 상태의 그룹화
+
+- 몇 개의 상태 변수를 사용해야 할지 고민될 때가 있습니다.
+
+<br>
+
+```js
+const [x, setX] = useState(0);
+const [y, setY] = useState(0);
+```
+
+- 어떤 방법이 좋나요?
+
+```js
+const [position, setPosition] = useState({ x: 0, y: 0 });
+```
+
+- 기술적으로는 두 방법 모두 좋습니다.
+- 하지만 2개의 상태 변수를 항상 함께 관리해야 한다면, 1개 상태 변수로 통합하는 것이 좋습니다.
+- 커서를 움직이면 빨간 점의 좌표가 업데이트 되는 아래 예제처럼 언제나 커서와 동기화된 상태를 유지합니다.
+
+```js
+import { useState } from 'react';
+
+export default function MovingDot() {
+  const [position, setPosition] = useState({
+    x: 0,
+    y: 0,
+  });
+  return (
+    <div
+      onPointerMove={(e) => {
+        setPosition({
+          x: e.clientX,
+          y: e.clientY,
+        });
+      }}
+      style={{
+        position: 'relative',
+        width: '100vw',
+        height: '100vh',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          backgroundColor: 'red',
+          borderRadius: '50%',
+          transform: `translate(${position.x}px, ${position.y}px)`,
+          left: -10,
+          top: -10,
+          width: 20,
+          height: 20,
+        }}
+      />
+    </div>
+  );
+}
+```
+
+- 상태가 얼마나 필요한지 모를 때도 데이터를 객체 or 배열로 그룹화하는 것이 좋습니다.
+- 예를 들어 유저가 사용자 설정 파일을 `form`에 추가하는 경우에 유용합니다.
+
+### 주의
+
+- 상태 변수가 객체인 경우, 복사하지 않고는 1개 필드만 업데이트 할 수 없습니다.
+- 예를 들어 `setPosition({x: 100})`는 `y` 값이 없기 때문에 호출할 수 없습니다.
+- `x` 변수만 수정하고 싶다면 `setPosition({ ...position, x: 100 })`처럼 호출하거나, `setX(100)`을 사용합니다.
+
+## 상태의 모순 방지
+
+- 아래는 `isSending`, `isSent` 상태 변수가 포함된 호텔 피드백 `form`입니다.
+
+```js
+import { useState } from 'react';
+
+export default function FeedbackForm() {
+  const [text, setText] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [isSent, setIsSent] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setIsSending(true);
+    await sendMessage(text);
+    setIsSending(false);
+    setIsSent(true);
+  }
+
+  if (isSent) {
+    return <h1>Thanks for feedback!</h1>;
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <p>How was your stay at The Prancing Pony?</p>
+      <textarea
+        disabled={isSending}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <br />
+      <button disabled={isSending} type='submit'>
+        Send
+      </button>
+      {isSending && <p>Sending...</p>}
+    </form>
+  );
+}
+
+function sendMessage(text) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 2000);
+  });
+}
+```
+
+- 코드가 동작하는 동안 **불가능한** 상태가 가능합니다.
+- 예를 들어 `setIsSent`와 `setIsSending` 함수 호출을 잊었다면, `setIsSent`와 `setIsSending` 모두 `true`인 상황이 발생할 수 있습니다.
+- 컴포넌트가 더 복잡한 경우, 무슨 일이 일어나는지 알기 어려울 겁니다.
+  <br><br>
+- **`setIsSent`와 `setIsSending`가 동시에 `true`면 안되므로 1개의 `status` 변수로 대체하는 것이 좋습니다.**
+  - `'typing'` (initial), `'sending'`, and `'sent'`:
+
+```js
+import { useState } from 'react';
+
+export default function FeedbackForm() {
+  const [text, setText] = useState('');
+  const [status, setStatus] = useState('typing');
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setStatus('sending');
+    await sendMessage(text);
+    setStatus('sent');
+  }
+
+  const isSending = status === 'sending';
+  const isSent = status === 'sent';
+
+  if (isSent) {
+    return <h1>Thanks for feedback!</h1>;
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <p>How was your stay at The Prancing Pony?</p>
+      <textarea
+        disabled={isSending}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <br />
+      <button disabled={isSending} type='submit'>
+        Send
+      </button>
+      {isSending && <p>Sending...</p>}
+    </form>
+  );
+}
+
+function sendMessage(text) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 2000);
+  });
+}
+```
+
+- 가독성을 위해 몇 가지 상수를 선언할 수 있습니다.
+- 그러나 상태 변수가 아니므로 서로 동기화되지 않을까 걱정할 필요가 없습니다.
+
+```js
+const isSending = status === 'sending';
+const isSent = status === 'sent';
+```
+
+## 불필요한 상태 제거
+
+- 렌더링 도중 컴포넌트의 `props` 혹은 기존 상태 변수 데이터를 다룬다면, 컴포넌트 상태 변수에 데이터를 저장하면 안 됩니다.
+- 아래 예시를 보겠습니다.
+- 잘 동작합니다만, 불필요한 상태를 찾아볼까요?
+
+```js
+import { useState } from 'react';
+
+export default function Form() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [fullName, setFullName] = useState('');
+
+  function handleFirstNameChange(e) {
+    setFirstName(e.target.value);
+    setFullName(e.target.value + ' ' + lastName);
+  }
+
+  function handleLastNameChange(e) {
+    setLastName(e.target.value);
+    setFullName(firstName + ' ' + e.target.value);
+  }
+
+  return (
+    <>
+      <h2>Let’s check you in</h2>
+      <label>
+        First name: <input value={firstName} onChange={handleFirstNameChange} />
+      </label>
+      <label>
+        Last name: <input value={lastName} onChange={handleLastNameChange} />
+      </label>
+      <p>
+        Your ticket will be issued to: <b>{fullName}</b>
+      </p>
+    </>
+  );
+}
+```
+
+- `firstName`, `lastName`, `fullName` 3개의 상태 변수를 다루고 있습니다.
+- `fullName`은 중복입니다.
+- **`firstName`, `lastName`을 중복해서 만들 수 있기 때문입니다.**
+
+```js
+import { useState } from 'react';
+
+export default function Form() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const fullName = firstName + ' ' + lastName;
+
+  function handleFirstNameChange(e) {
+    setFirstName(e.target.value);
+  }
+
+  function handleLastNameChange(e) {
+    setLastName(e.target.value);
+  }
+
+  return (
+    <>
+      <h2>Let’s check you in</h2>
+      <label>
+        First name: <input value={firstName} onChange={handleFirstNameChange} />
+      </label>
+      <label>
+        Last name: <input value={lastName} onChange={handleLastNameChange} />
+      </label>
+      <p>
+        Your ticket will be issued to: <b>{fullName}</b>
+      </p>
+    </>
+  );
+}
+```
+
+- `fullName`은 상태 변수가 아니므로, 렌더링 도중 계산될 수 있습니다.
+
+```js
+const fullName = firstName + ' ' + lastName;
+```
+
+<br>
+
+- 결과적으로 변경 핸들러는 업데이트 하기 위해 특별한 작업을 할 필요가 없습니다.
+- `setFirstName` or `setLastName`을 호출할 때, 리렌더링을 수행하며 `fullName`은 자동으로 계산됩니다.
+
+## 상태에서 `props`를 미러링하지 마세요
+
+- 불필요한 상태 코드는 아래와 같습니다.
+
+```js
+function Message({ messageColor }) {
+  const [color, setColor] = useState(messageColor);
+  // ...
+}
+```
+
+- `color` 상태 변수는 `messageColor` `prop`에 의해 초기화됩니다.
+- **문제는 상위 컴포넌트가 `messageColor`에 다른 값을 전달하는 경우 상태 변수가 업데이트 되지 않는다는 점입니다.**
+- 상태는 첫 렌더링 떄만 초기화됩니다.
+  <br><br>
+- 상태 변수에서 몇 `prop`을 미러링하면 안 되는 이유입니다.
+- 대신 `messageColor` `prop`을 직접적으로 사용하세요.
+- 짧은 이름으로 사용하고 싶다면 상수로 선언하면 됩니다.
+
+```js
+function Message({ messageColor }) {
+  const color = messageColor;
+  // ...
+}
+```
+
+- 이렇게 하면 상위 컴포넌트에서 전달된 `prop`과 동기화되지 않습니다.
+
+<br>
+
+- `props`를 어떤 상태에 미러링 할 때는 특정 `prop`에 대한 모든 업데이트를 무시하는 경우에만 의미 있습니다.
+
+```js
+function Message({ initialColor }) {
+  // `color` 상태 변수는 `initialColor`의 첫번째 값만 가지고 있습니다.
+  // `initialColor` 값이 변경되어 전달되어도 무시됩니다.
+  const [color, setColor] = useState(initialColor);
+  // ...
+}
+```
+
+## 상태에서 중복 방지
+
+- 아래의 메뉴 목록 컴포넌트를 활용하면 간식 하나를 선택할 수 있습니다.
+
+```js
+import { useState } from 'react';
+
+const initialItems = [
+  { title: 'pretzels', id: 0 },
+  { title: 'crispy seaweed', id: 1 },
+  { title: 'granola bar', id: 2 },
+];
+
+export default function Menu() {
+  const [items, setItems] = useState(initialItems);
+  const [selectedItem, setSelectedItem] = useState(items[0]);
+
+  return (
+    <>
+      <h2>What's your travel snack?</h2>
+      <ul>
+        {items.map((item) => (
+          <li key={item.id}>
+            {item.title}{' '}
+            <button
+              onClick={() => {
+                setSelectedItem(item);
+              }}
+            >
+              Choose
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p>You picked {selectedItem.title}.</p>
+    </>
+  );
+}
+```
+
+- 현재 선택된 항목을 `selectedItem` 상태 변수에 저장합니다.
+- 하지만 좋은 방법은 아닙니다.
+- `selectedItem`은 `items`의 값 1개와 **동일하기 때문**입니다.
+- 이는 중복을 의미합니다.
+  <br><br>
+- 왜 문제될까요?
+- 각 `item`을 편집 가능하게 만들어보겠습니다.
+
+```js
+import { useState } from 'react';
+
+const initialItems = [
+  { title: 'pretzels', id: 0 },
+  { title: 'crispy seaweed', id: 1 },
+  { title: 'granola bar', id: 2 },
+];
+
+export default function Menu() {
+  const [items, setItems] = useState(initialItems);
+  const [selectedItem, setSelectedItem] = useState(items[0]);
+
+  function handleItemChange(id, e) {
+    setItems(
+      items.map((item) => {
+        if (item.id === id) {
+          return {
+            ...item,
+            title: e.target.value,
+          };
+        }
+        return item;
+      })
+    );
+  }
+
+  return (
+    <>
+      <h2>What's your travel snack?</h2>
+      <ul>
+        {items.map((item, index) => (
+          <li key={item.id}>
+            <input
+              value={item.title}
+              onChange={(e) => {
+                handleItemChange(item.id, e);
+              }}
+            />{' '}
+            <button
+              onClick={() => {
+                setSelectedItem(item);
+              }}
+            >
+              Choose
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p>You picked {selectedItem.title}.</p>
+    </>
+  );
+}
+```
+
+- `Choose` 버튼을 먼저 누른 후 데이터를 **수정**하면, 아래 `label`은 수정 내용을 반영하지 않습니다.
+- 중복된 상태가 존재하고, `selectedItem` 업데이트를 잊었기 때문입니다.
+  <br><br>
+- `selectedItem`을 업데이트 할 수 있지만, 중복을 제거하는 것이 더 쉽습니다.
+- 아래 `id`를 변경하는 `selectedId`를 사용하여 `selectedItem`을 활용하는 예시입니다.
+
+```js
+import { useState } from 'react';
+
+const initialItems = [
+  { title: 'pretzels', id: 0 },
+  { title: 'crispy seaweed', id: 1 },
+  { title: 'granola bar', id: 2 },
+];
+
+export default function Menu() {
+  const [items, setItems] = useState(initialItems);
+  const [selectedId, setSelectedId] = useState(0);
+
+  const selectedItem = items.find((item) => item.id === selectedId);
+
+  function handleItemChange(id, e) {
+    setItems(
+      items.map((item) => {
+        if (item.id === id) {
+          return {
+            ...item,
+            title: e.target.value,
+          };
+        }
+        return item;
+      })
+    );
+  }
+
+  return (
+    <>
+      <h2>What's your travel snack?</h2>
+      <ul>
+        {items.map((item, index) => (
+          <li key={item.id}>
+            <input
+              value={item.title}
+              onChange={(e) => {
+                handleItemChange(item.id, e);
+              }}
+            />{' '}
+            <button
+              onClick={() => {
+                setSelectedId(item.id);
+              }}
+            >
+              Choose
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p>You picked {selectedItem.title}.</p>
+    </>
+  );
+}
+```
+
+- 상태의 **선택 인덱스**를 활용하는 방법도 존재합니다.
+  <br><br>
+- 상태 중복은 아래와 같이 사용됩니다.
+
+```js
+const items = [{ id: 0, title: 'pretzels'}, ...];
+const selectedItem = {id: 0, title: 'pretzels'};
+```
+
+<br>
+
+- 이렇게 사용하는 것이 바람직합니다.
+- 중복 없이, 필요한 상태만 사용할 수 있습니다.
+
+```js
+const items = [{ id: 0, title: 'pretzels'}, ...]
+const selectedId = 0
+```
+
+<br>
+
+- **선택된** 요소를 변경할 때, 메시지는 곧바로 변경될 것입니다.
+- `setItems`가 리렌더링을 하고, `items.find` 함수가 변경된 요소를 찾기 떄문입ㄴ디ㅏ.
+- **선택된 ID**때문에 **선택된 요소**는 상태 변수에 저장할 필요가 없습니다.
+- 더하여 나머지는 렌더링 중에 계산될 수 있습니다.
+
+## 깊은 중첩 상태 방지
+
+- 행성, 대륙, 국가가 포함된 여행 계획을 상상해볼까요?
+- 아래와 같이 중첩 객체 or 배열을 사용하여 상태를 구조화하고 싶을 겁니다.
+
+```js
+import { useState } from 'react';
+import { initialTravelPlan } from './places.js';
+
+function PlaceTree({ place }) {
+  const childPlaces = place.childPlaces;
+  return (
+    <li>
+      {place.title}
+      {childPlaces.length > 0 && (
+        <ol>
+          {childPlaces.map((place) => (
+            <PlaceTree key={place.id} place={place} />
+          ))}
+        </ol>
+      )}
+    </li>
+  );
+}
+
+export default function TravelPlan() {
+  const [plan, setPlan] = useState(initialTravelPlan);
+  const planets = plan.childPlaces;
+  return (
+    <>
+      <h2>Places to visit</h2>
+      <ol>
+        {planets.map((place) => (
+          <PlaceTree key={place.id} place={place} />
+        ))}
+      </ol>
+    </>
+  );
+}
+```
+
+- 이미 방문한 장소를 삭제하는 버튼을 추가해봅시다.
+- 어떻게 하실 건가요?
+- 중첩된 상태의 업데이트는 변경된 부분부터 최상단까지의 복사본을 만들어야 합니다.
+- 깊은 곳에 중첩되어 있다면, 상위 객체 전부를 복사해야 합니다.
+  <br><br>
+- 상태 많이 중첩되어 업데이트하기 어려운 경우, `flat`하게 만드는 것이 좋습니다.
+- 데이터를 다시 구조화하는 방법이 있습니다.
+- 계층적인 구조를 가지는 트리 대신, `ID`의 배열을 활용할 수 있습니다.
+- 각 `ID`에서 해당 장소로 매핑하여 저장할 수 있습니다.
+
+```js
+import { useState } from 'react';
+import { initialTravelPlan } from './places.js';
+
+function PlaceTree({ id, placesById }) {
+  const place = placesById[id];
+  const childIds = place.childIds;
+  return (
+    <li>
+      {place.title}
+      {childIds.length > 0 && (
+        <ol>
+          {childIds.map((childId) => (
+            <PlaceTree key={childId} id={childId} placesById={placesById} />
+          ))}
+        </ol>
+      )}
+    </li>
+  );
+}
+
+export default function TravelPlan() {
+  const [plan, setPlan] = useState(initialTravelPlan);
+  const root = plan[0];
+  const planetIds = root.childIds;
+  return (
+    <>
+      <h2>Places to visit</h2>
+      <ol>
+        {planetIds.map((id) => (
+          <PlaceTree key={id} id={id} placesById={plan} />
+        ))}
+      </ol>
+    </>
+  );
+}
+```
+
+- 이제 상태가 `flat`(정규화)되었기에, 업데이트가 더 쉬워졌습니다.
+- 삭제하는 경우, 2개 상태 레벨만 업데이트하면 됩니다.
+  <br><br>
+- **상위** 장소의 업데이트 버전은 `childIds` 배열에서 삭제된 `ID`를 제외해야 합니다.
+- 루트 **테이블**의 업데이트 버전은 상위 위치의 업데이트 버전이 포함되어야 합니다.
+
+```js
+import { useState } from 'react';
+import { initialTravelPlan } from './places.js';
+
+export default function TravelPlan() {
+  const [plan, setPlan] = useState(initialTravelPlan);
+
+  function handleComplete(parentId, childId) {
+    const parent = plan[parentId];
+    // 하위 ID를 포함하지 않는 상위 객체의 새로운 버전 생성
+    const nextParent = {
+      ...parent,
+      childIds: parent.childIds.filter((id) => id !== childId),
+    };
+    // 루트 상태 객체 업데이트
+    setPlan({
+      ...plan,
+      // 업데이트
+      [parentId]: nextParent,
+    });
+  }
+
+  const root = plan[0];
+  const planetIds = root.childIds;
+  return (
+    <>
+      <h2>Places to visit</h2>
+      <ol>
+        {planetIds.map((id) => (
+          <PlaceTree
+            key={id}
+            id={id}
+            parentId={0}
+            placesById={plan}
+            onComplete={handleComplete}
+          />
+        ))}
+      </ol>
+    </>
+  );
+}
+
+function PlaceTree({ id, parentId, placesById, onComplete }) {
+  const place = placesById[id];
+  const childIds = place.childIds;
+  return (
+    <li>
+      {place.title}
+      <button
+        onClick={() => {
+          onComplete(parentId, id);
+        }}
+      >
+        Complete
+      </button>
+      {childIds.length > 0 && (
+        <ol>
+          {childIds.map((childId) => (
+            <PlaceTree
+              key={childId}
+              id={childId}
+              parentId={id}
+              placesById={placesById}
+              onComplete={onComplete}
+            />
+          ))}
+        </ol>
+      )}
+    </li>
+  );
+}
+```
+
+- 상태 중첩을 활용할 수도 있지만, `flat`하게 만들면 많은 오류가 해결됩니다.
+- 쉽게 업데이트할 수 있고, 중복을 확인하는 데도 유용합니다.
+
+## Deep Dive - 공간 복잡도 향상
+
+- 메모리 사용률을 향상하기 위해, **테이블** 객체에서 삭제된 항목도 제거해야 합니다.
+- `Immer`를 사용하여 효율적으로 업데이트할 수 있습니다.
+
+```js
+import { useImmer } from 'use-immer';
+import { initialTravelPlan } from './places.js';
+
+export default function TravelPlan() {
+  const [plan, updatePlan] = useImmer(initialTravelPlan);
+
+  function handleComplete(parentId, childId) {
+    updatePlan((draft) => {
+      // 상위 장소의 하위 ID를 통해 제거
+      const parent = draft[parentId];
+      parent.childIds = parent.childIds.filter((id) => id !== childId);
+
+      // 장소와 하위 트리 삭제
+      deleteAllChildren(childId);
+      function deleteAllChildren(id) {
+        const place = draft[id];
+        place.childIds.forEach(deleteAllChildren);
+        delete draft[id];
+      }
+    });
+  }
+
+  const root = plan[0];
+  const planetIds = root.childIds;
+  return (
+    <>
+      <h2>Places to visit</h2>
+      <ol>
+        {planetIds.map((id) => (
+          <PlaceTree
+            key={id}
+            id={id}
+            parentId={0}
+            placesById={plan}
+            onComplete={handleComplete}
+          />
+        ))}
+      </ol>
+    </>
+  );
+}
+
+function PlaceTree({ id, parentId, placesById, onComplete }) {
+  const place = placesById[id];
+  const childIds = place.childIds;
+  return (
+    <li>
+      {place.title}
+      <button
+        onClick={() => {
+          onComplete(parentId, id);
+        }}
+      >
+        Complete
+      </button>
+      {childIds.length > 0 && (
+        <ol>
+          {childIds.map((childId) => (
+            <PlaceTree
+              key={childId}
+              id={childId}
+              parentId={id}
+              placesById={placesById}
+              onComplete={onComplete}
+            />
+          ))}
+        </ol>
+      )}
+    </li>
+  );
+}
+```
+
+- 중첩된 상태를 하위 컴포넌트로 이동하여 상태 중첩을 줄일 수도 있습니다.
+- 요소를 가리키고 있는지 여부와 같이 저장할 필요가 없는 임시 UI에 적합합니다.
+
+## 요약
+
+- 2개 상태 변수가 항상 함께 업데이트되는 경우 1개로 합치는 것이 좋습니다.
+- 불가능한 상태를 만들지 않으려면, 상태 변수를 신중하게 생각해야 합니다.
+- 업데이트 시 오류를 줄이는 방식으로 상태를 구성합니다.
+- 중복 및 중복 상태를 방지하여 동기화 상태를 유지하지 않습니다.
+- 업데이트를 방지하는 특이 경우를 제외하면, `props`를 상태로 전환하지 않습니다.
+- 선택과 같은 `UI` 패턴의 경우 객체 대신 `ID` or 인덱스를 상태로 유지합니다.
+- 깊게 중첩된 상태를 업데이트하는 것이 복잡한 경우, 상태를 `flat`하게 유지합니다.
