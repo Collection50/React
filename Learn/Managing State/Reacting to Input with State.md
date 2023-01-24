@@ -1,0 +1,432 @@
+# Reacting to Input with State
+
+- `React`는 선언적인 방식으로 UI를 조작합니다.
+- 각각의 UI를 직접 조작하기보다, 컴포넌트 내부에 여러 상태를 설명하고 사용자의 입력에 따라 상태를 변경합니다.
+- 디자이너가 UI를 바라보는 시각과 비슷합니다.
+
+## 배우게 될 것
+
+- 명령형 프로그램과 선언적 프로그래밍의 차이점
+- 컴포넌트에 포함될 수 있는 다양한 시각적 상태를 열거하는 방법
+- 코드에서 여러 시각적 상태 간의 변경으르 트리거 하는 방법
+
+## 선언형 UI vs 명령형 UI
+
+- UI 인터랙션을 디자인할 때, 유저의 행동에 어떻게 UI를 변경해야 할지 고민해야 합니다.
+- 유저가 `form`을 제출해야 한다고 가정해볼까요?
+  <br><br>
+
+1. 폼에 무언가 입력하면 제출 버튼이 **활성화**됩니다.
+2. 제출 버튼을 누르면 `form`과 버튼이 **비활성화**되고 스피너가 등장합니다.
+3. 네트워크 요청이 성공하면 `form`은 **사라지고** `감사합니다` 메시지가 등장합니다.
+4. 네트워크 요청이 실패하면 오류 메시지가 **보이고** 폼은 다시 **활성화**됩니다.
+
+- 위 내용은 명령형 프로그래밍에서 인터랙션을 구현하는 방법입니다.
+- UI를 조작하려면 조건에 따라 정확하게 프로그래밍 해야 합니다.
+- 차 조수석에 탄 사람이 목적지를 차례대로 말해준다고 가정해볼까요?
+  <br><br>
+- 운전기사는 목적지가 어딘지 모릅니다.
+- 그저 조수석에 탄 사람의 **명령**에 따를 뿐입니다.
+- **명령형** 프로그래밍이라고 부르는 이유입니다.
+- 잘못된 지시를 하면, 잘못된 곳에 도착합니다.
+  <br><br>
+- 아래의 명령형 UI 프로그래밍 예제는 `React` 없이 브라우저 내장 `DOM`만 사용했습니다.
+
+```js
+async function handleFormSubmit(e) {
+  e.preventDefault();
+  disable(textarea);
+  disable(button);
+  show(loadingMessage);
+  hide(errorMessage);
+  try {
+    await submitForm(textarea.value);
+    show(successMessage);
+    hide(form);
+  } catch (err) {
+    show(errorMessage);
+    errorMessage.textContent = err.message;
+  } finally {
+    hide(loadingMessage);
+    enable(textarea);
+    enable(button);
+  }
+}
+
+function handleTextareaChange() {
+  if (textarea.value.length === 0) {
+    disable(button);
+  } else {
+    enable(button);
+  }
+}
+
+function hide(el) {
+  el.style.display = 'none';
+}
+
+function show(el) {
+  el.style.display = '';
+}
+
+function enable(el) {
+  el.disabled = false;
+}
+
+function disable(el) {
+  el.disabled = true;
+}
+
+function submitForm(answer) {
+  // 네트워크에 접속한다고 가정해봅시다.
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if (answer.toLowerCase() === 'istanbul') {
+        resolve();
+      } else {
+        reject(new Error('Good guess but a wrong answer. Try again!'));
+      }
+    }, 1500);
+  });
+}
+
+let form = document.getElementById('form');
+let textarea = document.getElementById('textarea');
+let button = document.getElementById('button');
+let loadingMessage = document.getElementById('loading');
+let errorMessage = document.getElementById('error');
+let successMessage = document.getElementById('success');
+form.onsubmit = handleFormSubmit;
+textarea.oninput = handleTextareaChange;
+```
+
+- 위의 예시는 큰 문제가 발생하지 않습니다.
+- 하지만 같은 UI 조작 방법으로 복잡한 시스템을 다룬다면 많은 문제가 발생합니다.
+- 서로 다른 `form`으로 가득 찬 페이지를 수정해야 한다면 어떨까요?
+- 새로운 UI 요소나 새로운 인터랙션을 추가한다면 모든 코드를 수정해야 합니다.
+  <br><br>
+- `React`는 직접 UI를 조작할 필요가 없습니다.
+- 컴포넌트를 **직접** 활성화, 비활성화, 보여주거나 숨길 필요가 없습니다.
+- 무엇을 보여주고 싶은지 선언하기만 하면 됩니다. (`what`)
+- 그러면 `React`는 UI 업데이트 방법을 이해할 것입니다.
+- 택시를 탄다고 생각해 봅시다.
+- 운전기사에게 가고 싶은 곳만 말한다고 생각해 보세요.
+- 목적지에 데려다주는 것은 운전기사의 일이고 어쩌면 당신이 몰랐던 지름길을 알고 있을지도 모릅니다!
+
+## UI를 선언적인 방식으로 생각하기
+
+- 지금까지 `form`을 선언적인 방식으로 구현하는 방법을 살펴보았습니다.
+- `React`처럼 생각하기 위해 UI를 다시 구현해봅시다.
+
+1. 컴포넌트의 다양한 시각적 상태를 **식별한다.**
+2. 상태 변화를 트리거하는 요소를 **결정한다.**
+3. `useState`를 사용해서 메모리의 상태를 **나타낸다.**
+4. 불필요한 상태 변수를 **제거한다.**
+5. 상태 업데이트를 위해 이벤트 핸들러를 **연결한다.**
+
+## 1단계: 컴포넌트의 다양한 시각적 상태 식별하기
+
+- 여러 **상태**를 갖고 있는 **상태 기계**가 존재한다는 것을 컴퓨터 공학에서 들어봤을 겁니다.
+- 디자이너와 일한다면 다양한 **시각적 상태**에 관한 모형을 본적 있을 겁니다.
+- `React`는 디자인과 CS 사이에 존재하기에 2곳에서 영감을 받아 제작되었습니다.
+  <br><br>
+- 먼저, 사용자가 볼 수 있는 UI의 모든 **상태**를 시각화 해야 합니다.
+- **Empty**: `form`은 비활성화된 제출 버튼을 갖고 있다.
+- **Typing**: `form`은 활성화된 제출 버튼을 갖고 있다.
+- **Submitting**: `form`은 완전히 비활성화되고 스피너를 보여준다.
+- **Success**: `form` 대신 `감사합니다.` 메시지를 보여준다.
+- **Error**: `Typing` 상태와 동일하지만 오류 메시지를 보여준다.
+  <br><br>
+- 로직을 추가하기 전, 디자이너처럼 여러 상태에 대한 모형을 만드는게 좋습니다.
+- 예를 들어 `form`과 비슷한 모형이 있다고 가정해볼까요?
+- 이 모형은 기본값이 `'empty'`인 `status` `prop`에 의해 컨트롤됩니다.
+
+```js
+export default function Form({ status = 'empty' }) {
+  if (status === 'success') {
+    return <h1>That's right!</h1>;
+  }
+  return (
+    <>
+      <h2>City quiz</h2>
+      <p>
+        In which city is there a billboard that turns air into drinkable water?
+      </p>
+      <form>
+        <textarea />
+        <br />
+        <button>Submit</button>
+      </form>
+    </>
+  );
+}
+```
+
+- 원하는 이름을 사용하면 되기에, `prop`의 네이밍은 중요하지 않습니다.
+- `status = 'empty'`를 `status = 'success'`로 변경하고 성공 메시지를 확인해보세요.
+- 로직을 연결하기 전, 모형을 통해 UI를 빠르게 테스트할 수 있습니다.
+  <br><br>
+- 아래는 `status` `prop`에 의해 **컨트롤**되는 더 구체적인 프로토타입입니다.
+
+```js
+export default function Form({
+  // status를 'submitting', 'error', 'success'로 한 번 변경해보세요
+  status = 'error',
+}) {
+  if (status === 'success') {
+    return <h1>That's right!</h1>;
+  }
+  return (
+    <>
+      <h2>City quiz</h2>
+      <p>
+        In which city is there a billboard that turns air into drinkable water?
+      </p>
+      <form>
+        <textarea disabled={status === 'submitting'} />
+        <br />
+        <button disabled={status === 'empty' || status === 'submitting'}>
+          Submit
+        </button>
+        {status === 'error' && (
+          <p className='Error'>Good guess but a wrong answer. Try again!</p>
+        )}
+      </form>
+    </>
+  );
+}
+```
+
+## Deep Dive - 한 번에 많은 시각적 상태 표시
+
+- 컴포넌트가 많은 시각적 상태를 갖고 있다면, 한 페이지에 모두 보여주는 것이 좋습니다.
+
+```js
+// App.js
+import Form from './Form.js';
+
+let statuses = ['empty', 'typing', 'submitting', 'success', 'error'];
+
+export default function App() {
+  return (
+    <>
+      {statuses.map((status) => (
+        <section key={status}>
+          <h4>Form ({status}):</h4>
+          <Form status={status} />
+        </section>
+      ))}
+    </>
+  );
+}
+```
+
+```js
+// Form.js
+export default function Form({ status }) {
+  if (status === 'success') {
+    return <h1>That's right!</h1>;
+  }
+
+  return (
+    <form>
+      <textarea disabled={status === 'submitting'} />
+      <br />
+      <button disabled={status === 'empty' || status === 'submitting'}>
+        Submit
+      </button>
+      {status === 'error' && (
+        <p className='Error'>Good guess but a wrong answer. Try again!</p>
+      )}
+    </form>
+  );
+}
+```
+
+- 위와 같은 페이지를 보통 **살아있는 스타일 가이드** 혹은 **스토리북**이라고 부릅니다.
+
+## 2단계: 상태 변화를 트리거하는 요소를 결정하기
+
+- 2개 종류의 입력을 활용하여 상태 업데이트를 트리거 할 수 있습니다.
+
+1. 버튼 클릭, 타이핑, 링크 이동 등의 **사용자 입력**
+2. 네트워크 응답, 타임아웃, 이미지 로딩 등의 **컴퓨터 입력**
+
+- 모든 경우에서 UI를 업데이트하기 위해 **상태 변수를 업데이트** 해야 합니다.
+- `form`의 경우 몇 가지 입력에 따라 상태를 변경해야 합니다.
+
+1. **텍스트를 변경**하면 텍스트 상자가 비어있는지 여부에 따라 상태를 `Empty`나 `Typing`으로 변경해야 합니다.
+2. **제출 버튼을 클릭**하면 `Submitting` 상태를 변경해야 합니다.
+3. **네트워크 응답**이 성공적으로 오면 `Success` 상태를 변경해야 합니다.
+4. **네트워크 요청**이 실패하면 해당하는 오류 메시지와 함께 `Error` 상태를 변경해야 합니다.
+
+> 사용자 입력은 이벤트 핸들러가 필요한 경우도 있습니다!
+
+- 위의 흐름을 종이에 그려 시각화 해봅시다.
+- 각각의 상태를 원으로 표현하고, 상태 변화를 화살표로 이어 봅시다.
+- 상태 변화 흐름을 파악할 수 있을 뿐만 아니라, 버그를 찾을 수 있습니다.
+
+## 3단계: 메모리의 상태를 `useState`로 표현하기
+
+- 다음으로 `useState`를 사용하여 컴포넌트의 시각적 상태를 표현해야 합니다.
+- 이 과정은 단순함이 핵심입니다.
+- 각각의 상태는 **움직이는 조각**입니다.
+- 그리고 **움직이는 조각**은 **적을수록 좋습니다.**
+- 복잡한 건 버그를 일으키기 마련이기 때문입니다!
+  <br><br>
+- **꼭 필요한 상태**를 가지고 시작해봅시다.
+- 예를 들어 입력의 `answer`와 최근 발생한 `error`는 필요한 정보입니다.
+
+```js
+const [answer, setAnswer] = useState('');
+const [error, setError] = useState(null);
+```
+
+- 그리고 나서는 앞서 필요하다고 나열했던 나머지 상태도 살펴봅시다.
+- 보통은 어떤 상태 변수를 사용할지에 대한 여러 방법이 존재하기에 이것저것 실험해볼 필요가 있습니다.
+  <br><br>
+- 모든 시각적 상태를 관장할 수 있는 것을 먼저 추가하는 방식으로 시작해도 좋습니다.
+
+```js
+const [isEmpty, setIsEmpty] = useState(true);
+const [isTyping, setIsTyping] = useState(false);
+const [isSubmitting, setIsSubmitting] = useState(false);
+const [isSuccess, setIsSuccess] = useState(false);
+const [isError, setIsError] = useState(false);
+```
+
+## 4단계: 불필요한 상태 변수 제거하기
+
+- 중복이 없는 필수적인 상태만 남겨두고 싶을 겁니다.
+- 리팩토링을 통해 컴포넌트는 더 쉬워지고, 중복은 줄어들고, 오류를 방지할 수 있습니다.
+- 리팩토링의 목표는 보여줘야 하는 UI를 보여주지 않는 경우를 방지하는 것입니다.
+
+  - (예를 들면 오류 메시지가 나타났는데 인풋이 비활성화 돼 있어 유저가 오류를 수정할 수 없는 상황은 원하지 않을 겁니다!)
+    <br><br>
+
+- 상태 변수에 관한 몇가지 질문이 있습니다.
+
+1. **모순되는 상태가 존재하나요?**
+
+   - 예를 들면 `isTyping`과 `isSubmitting`이 동시에 `true`일 수는 없습니다.
+   - 이는 상태의 제한 사항에 빈틈이 존재를 의미합니다.
+   - `boolean` 값을 반환하는 4가지 조합이 있지만 유효한 상태는 3개뿐입니다.
+   - 상태의 **양립 가능성**을 제거하기 위해 `'typing'`, `'submitting'`, `'success'`을 1개 `status`로 합칠 수 있습니다.
+
+2. **다른 상태 변수에 같은 정보가 담겨있진 않나요?**
+
+   - isEmpty와 `isTyping`은 동시에 true가 될 수 없습니다.
+   - 이를 각각의 상태 변수로 분리하면 싱크가 맞지 않거나 버그가 발생할 위험이 있습니다.
+   - 이 경우에는 운이 좋게도 isEmpty를 지우고 answer.length === 0으로 체크할 수 있습니다.
+
+3. **다른 변수에 역수를 취했을 때 같은 정보를 얻을 수 있나요?**
+
+   - `isError`는 `error !== null`로 대신할 수 있기 때문에 필요하지 않습니다.
+
+<br>
+
+- 위 과정을 거친 이후엔 **필수 변수**만 남게 됩니다.
+
+```js
+const [answer, setAnswer] = useState('');
+const [error, setError] = useState(null);
+const [status, setStatus] = useState('typing');
+// 'typing', 'submitting', or 'success'
+```
+
+- 하나라도 없을 때 정상적으로 작동하지 않기에, 모두 필요한 변수들입니다.
+
+## Deep Dive - 리듀서를 활용하여 불가능한 상태 제거
+
+- `form`의 상태를 잘 나타내는 3가지 변수가 있다고 가정해봅시다.
+- 하지만 3개 변수는 양립 불가능한 중간 상태입니다.
+- 예를 들어, `status='success'`이면서 `error`가 존재하는 경우는 없습니다.
+- 상태를 명확하게 모델링하기 위해 리듀서를 활용할 수 있습니다.
+- 리듀서를 사용하면 여러 상태 변수를 단일 객체로 통합하고 관련된 로직을 통합할 수 있습니다.
+
+## 5단계: 상태 업데이트를 위해 이벤트 핸들러 연결하기
+
+- 마지막으로, 상태 변수를 업데이트하기 위해 이벤트 핸들러를 만들어볼까요?
+- 모든 이벤트 핸들러가 연결된 `form`을 살펴보겠습니다.
+
+```js
+import { useState } from 'react';
+
+export default function Form() {
+  const [answer, setAnswer] = useState('');
+  const [error, setError] = useState(null);
+  const [status, setStatus] = useState('typing');
+
+  if (status === 'success') {
+    return <h1>That's right!</h1>;
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setStatus('submitting');
+    try {
+      await submitForm(answer);
+      setStatus('success');
+    } catch (err) {
+      setStatus('typing');
+      setError(err);
+    }
+  }
+
+  function handleTextareaChange(e) {
+    setAnswer(e.target.value);
+  }
+
+  return (
+    <>
+      <h2>City quiz</h2>
+      <p>
+        In which city is there a billboard that turns air into drinkable water?
+      </p>
+      <form onSubmit={handleSubmit}>
+        <textarea
+          value={answer}
+          onChange={handleTextareaChange}
+          disabled={status === 'submitting'}
+        />
+        <br />
+        <button disabled={answer.length === 0 || status === 'submitting'}>
+          Submit
+        </button>
+        {error !== null && <p className='Error'>{error.message}</p>}
+      </form>
+    </>
+  );
+}
+
+function submitForm(answer) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      let shouldError = answer.toLowerCase() !== 'lima';
+      if (shouldError) {
+        reject(new Error('Good guess but a wrong answer. Try again!'));
+      } else {
+        resolve();
+      }
+    }, 1500);
+  });
+}
+```
+
+- 코드의 길이는 훨씬 길어졌지만, 훨씬 안정적입니다.
+- 상태 변경을 통해 인터랙션을 표현하는 방법은 기존 상태를 손상시키지 않고 새로운 시각적 상태를 추가할 수 있습니다.
+- 인터랙션 자체 로직을 변경하지 않고 상태를 변경할 수 있습니다.
+
+## 요약
+
+- 선언적 프로그래밍은 UI를 세부적으로 관리하는 것이 아니라, 시각적 상태에 대한 UI를 설명하는 것을 의미합니다.
+
+  - `how`가 아니라 `what` 전달
+
+- 컴포넌트를 개발할 때
+
+1. 모든 시각적 상태를 식별합니다.
+2. 상태 변경에 대한 트리거를 결정합니다.
+3. `useState`를 사용하여 상태를 모델링합니다.
+4. 버그와 모순된 상태를 피하기 위해 불필요한 상태를 제거합니다.
+5. 상태를 업데이트하기 위해 이벤트 핸들러를 연결합니다.
