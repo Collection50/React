@@ -1,0 +1,265 @@
+# Sharing State Between Components
+
+- 두 컴포넌트의 상태를 항상 함께 변경하고 싶을 수 있습니다.
+- 그렇게 하려면 각 컴포넌트의 상태를 제거하고 가장 가까운 공통의 상위 컴포넌트로 옮긴후 `props`로 전달해야 합니다.
+- 이 방법을 **상태 끌어올리기**라고 하며 `React` 코드를 작성할 때 자주 사용됩니다.
+
+## 배우게 될 것
+
+- 상태를 끌어올리며 컴포넌트 사이의 상태 공유하는 방법
+- 제어되는 컴포넌트, 제어되지 않는 컴포넌트가 무엇인가?
+
+## 상태 끌어올리기 예제
+
+- 아래 예제는 상위 컴포넌트 `Accordion` 컴포넌트가 2개의 `Panel`을 렌더링합니다.
+
+- `Accordion`
+  - `Panel`
+  - `Panel`
+
+<br>
+
+- 각각의 `Panel` 컴포넌트는 콘텐츠 표시 여부를 결정하는 `isActive` 상태 변수를 가집니다.
+
+```js
+import { useState } from 'react';
+
+function Panel({ title, children }) {
+  const [isActive, setIsActive] = useState(false);
+  return (
+    <section className='panel'>
+      <h3>{title}</h3>
+      {isActive ? (
+        <p>{children}</p>
+      ) : (
+        <button onClick={() => setIsActive(true)}>Show</button>
+      )}
+    </section>
+  );
+}
+
+export default function Accordion() {
+  return (
+    <>
+      <h2>Almaty, Kazakhstan</h2>
+      <Panel title='About'>
+        With a population of about 2 million, Almaty is Kazakhstan's largest
+        city. From 1929 to 1997, it was its capital city.
+      </Panel>
+      <Panel title='Etymology'>
+        The name comes from <span lang='kk-KZ'>алма</span>, the Kazakh word for
+        "apple" and is often translated as "full of apples". In fact, the region
+        surrounding Almaty is thought to be the ancestral home of the apple, and
+        the wild <i lang='la'>Malus sieversii</i> is considered a likely
+        candidate for the ancestor of the modern domestic apple.
+      </Panel>
+    </>
+  );
+}
+```
+
+- 1개 패널의 버튼을 누르는 것은 다른 패널에 영향을 미치지 않습니다.
+- 2개의 패널은 각각 독립적입니다.
+  <br><br>
+- 패널을 한 번에 하나만 확장하도록 변경해보겠습니다.
+- 1개 패널을 확장하면 다른 하나의 패널은 축소됩니다.
+  <br><br>
+- 2개의 패널을 조잘하기 위해선 아래 3개 단계를 통해 상위 컴포넌트에 **상태를 끌어올려야** 합니다.
+
+1. 하위 컴포넌트의 상태 **제거**
+2. 하드 코딩된 데이터를 공통 상위 컴포넌트로부터 **전달**
+3. 공통 상위 컴포넌트에 상태를 **추가**하고 이벤트 핸들러와 함께 전달
+
+- 이제 `Accordion` 컴포넌트가 2개 패널을 모두 조정하고 한 번에 하나의 패널만 확장됩니다.
+
+## 1단계: 하위 컴포넌트의 상태 제거
+
+- 상위 컴포넌트에게 `Panel`의 `isActive` 함수에 대한 통제권을 넘겨주는 것입니다.
+- 이는 상위 컴포넌트가 `prop`을 통해 `isActive` 함수를 `Panel`에 전달하는 것을 의미합니다.
+- `Panel` 컴포넌트에서 **아래 코드를 지우는** 것으로 시작하겠습니다.
+
+```js
+const [isActive, setIsActive] = useState(false);
+```
+
+<br>
+
+- 대신, `Panel`의 `prop`으로 `isActive`를 전달하겠습니다.
+
+```js
+function Panel({ title, children, isActive }) {
+  // ...
+}
+```
+
+- 이제 `Panel`의 상위 컴포넌트는 **`props` 내리꽂기**를 통해 `isActive`를 제어할 수 있습니다.
+- 반대로 `Panel` 컴포넌트는 `isActive`를 제어할 수 없습니다.
+
+## 2단계: 하드 코딩된 데이터를 상위 컴포넌트로 전달
+
+- 상태가 끌어올려지는 위치는 하위 컴포넌트의 가장 가까이 존재하는 상위 컴포넌트입니다.
+
+- `Accordion`
+  - `Panel`
+  - `Panel`
+
+<br>
+
+- 아래 예제는 `Accordion` 컴포넌트입니다.
+- `Accordion` 컴포넌트는 2개 `Panel` 상위에 존재하고 `props`를 제어할 수 있습니다.
+- 따라서 활성화된 패널을 식별할 수 있습니다.
+- `Accordion` 컴포넌트가 `isActive`의 하드 코딩된 데이터를 2개 `Panel`에 전달합니다.
+
+```js
+export default function Accordion() {
+  return (
+    <>
+      <h2>Almaty, Kazakhstan</h2>
+      <Panel title='About' isActive={true}>
+        With a population of about 2 million, Almaty is Kazakhstan's largest
+        city. From 1929 to 1997, it was its capital city.
+      </Panel>
+      <Panel title='Etymology' isActive={true}>
+        The name comes from <span lang='kk-KZ'>алма</span>, the Kazakh word for
+        "apple" and is often translated as "full of apples". In fact, the region
+        surrounding Almaty is thought to be the ancestral home of the apple, and
+        the wild <i lang='la'>Malus sieversii</i> is considered a likely
+        candidate for the ancestor of the modern domestic apple.
+      </Panel>
+    </>
+  );
+}
+
+function Panel({ title, children, isActive }) {
+  return (
+    <section className='panel'>
+      <h3>{title}</h3>
+      {isActive ? (
+        <p>{children}</p>
+      ) : (
+        <button onClick={() => setIsActive(true)}>Show</button>
+      )}
+    </section>
+  );
+}
+```
+
+- `Accordion` 컴포넌트에서 하드 코딩된 `isActive` 값을 편집해보세요.
+
+## 3단계: 공통 상위 컴포넌트에 상태 추가
+
+- 상태를 끌어올리는 것은 상태로 저장된 데이터의 특성을 바꿉니다.
+  <br><br>
+- 아래 예시는, 한 번에 한 개 패널만 활성화됩니다.
+- 이는 공통 상위 컴포넌트인 `Accordion`은 **어떤** 패널이 활성화 되어있는지 알아야 합니다.
+- `boolean` 값을 전달하는 대신, 활성화된 `Panel`의 인덱스를 상태 변수로 사용하면 됩니다.
+
+```js
+const [activeIndex, setActiveIndex] = useState(0);
+```
+
+- `activeIndex`가 `0`이면 첫번째 패널을 활성화하고, `1`이면 두번째 패널을 활성화합니다.
+  <br><br>
+- 각 `Panel`의 `Show` 버튼을 누르는 것은 `Accordion` 컴포넌트의 활성화 인덱스를 변경하도록 요청합니다.
+- `Panel`은 직접적으로 `activeIndex` 값을 변경할 수 없습니다.
+- `Accordion`이 `Panel`에게 상태를 변경할 수 있도록 **암묵적으로 허락**해야 합니다.
+- `prop`으로 이벤트 핸들러를 전달하면서 말이죠.
+
+```js
+<>
+  <Panel isActive={activeIndex === 0} onShow={() => setActiveIndex(0)}>
+    ...
+  </Panel>
+  <Panel isActive={activeIndex === 1} onShow={() => setActiveIndex(1)}>
+    ...
+  </Panel>
+</>
+```
+
+<br>
+
+- `Pannel` 내부의 `<button>`은 클릭 이벤트 핸들러로 `onShow` `prop`을 사용합니다.
+
+```js
+import { useState } from 'react';
+
+export default function Accordion() {
+  const [activeIndex, setActiveIndex] = useState(0);
+  return (
+    <>
+      <h2>Almaty, Kazakhstan</h2>
+      <Panel
+        title='About'
+        isActive={activeIndex === 0}
+        onShow={() => setActiveIndex(0)}
+      >
+        With a population of about 2 million, Almaty is Kazakhstan's largest
+        city. From 1929 to 1997, it was its capital city.
+      </Panel>
+      <Panel
+        title='Etymology'
+        isActive={activeIndex === 1}
+        onShow={() => setActiveIndex(1)}
+      >
+        The name comes from <span lang='kk-KZ'>алма</span>, the Kazakh word for
+        "apple" and is often translated as "full of apples". In fact, the region
+        surrounding Almaty is thought to be the ancestral home of the apple, and
+        the wild <i lang='la'>Malus sieversii</i> is considered a likely
+        candidate for the ancestor of the modern domestic apple.
+      </Panel>
+    </>
+  );
+}
+
+function Panel({ title, children, isActive, onShow }) {
+  return (
+    <section className='panel'>
+      <h3>{title}</h3>
+      {isActive ? <p>{children}</p> : <button onClick={onShow}>Show</button>}
+    </section>
+  );
+}
+```
+
+- 이렇게 상태 끌어올리기가 완료됩니다.
+- 상태를 공통 상위 컴포넌트로 옮기면 2개 패널을 한 번에 제어할 수 있습니다.
+- 활성화된 인덱스를 사용하는 것은 한 번에 한 개 패널만 활성화할 수 있습니다.
+- 그리고 하위 컴포넌트로 이벤트 핸들러를 전달하면 하위 컴포넌트에서 상위 컴포넌트의 상태를 변경할 수 있습니다.
+
+## Deep Dive - 제어되는 컴포넌트, 제어되지 않는 컴포넌트
+
+- **제어되지 않은** 지역 상태를 갖는 컴포넌트를 사용하는 것은 흔한 일입니다.
+- 예를 들어 `isActive` 상태 변수를 갖는 `Panel` 컴포넌트는 상위 컴포넌트의 활성화 여부에 영향을 줄 수 없기 때문에 제어되지 않습니다.
+  <br><br>
+- 반대로 중요한 정보가 `props`에 의해 만들어지는 경우는 **제어되는** 컴포넌트입니다.
+- 이를 통해 상위 컴포넌트가 동작을 완전히 지정할 수 있습니다.
+- `isActive` `prop`을 갖는 `Panel` 컴포넌트는 `Accordion` 컴포넌트에 의해 제어됩니다.
+  <br><br>
+- 제어되지 않는 컴포넌트는 사용하는 것이 적어 상위 컴포넌트에서 사용하기 쉽습니다.
+- 하지만 여러 컴포넌트를 사용하는 경우 불리합니다.
+- 제어되는 컴포넌트는 유연하게 사용할 수 있지만, 상위 컴포넌트에서 `props`를 잘 설정해야 합니다.
+  <br><br>
+- 실제로 **제어**와 **제어되지 않는**다는 용어는 기술적 용어가 아닙니다.
+- 일반적으로 컴포넌트는 지역 상태 변수와 `props`를 혼합해서 사용합니다.
+- 이러한 구분은 컴포넌트 설계와 기능 설명에 유용합니다.
+  <br><br>
+- 컴포넌트를 만들 때 어떤 정보가 `props`를 통해 제어되어야 하고, 어떤 정보가 상태 변수를 통해 제어되어야 하는지 고민해야 합니다.
+
+## 각 상태의 단일 진리 원천(?)
+
+- `React` 앱에선, 다양한 컴포넌트가 자체의 상태를 소유합니다.
+- 일부 상태는 입력처럼 트리 맨 아래 컴포넌트에 가깝게 **활성화** 됩니다.
+- 다른 상태는 앱 상단 가까이 활성화됩니다.
+- 예를 들어 클라이언트의 라우팅 라이브러리도 현재 경로를 `React` 상태로 저장하고 `props`로 전달하도록 구현되어 있습니다.
+  <br><br>
+- **각각의 고유한 상태를 어떤 컴포넌트가 소유할지 고를 수 있습니다.**
+- 이러한 원칙은 **단일 진리 원천**을 갖고 있습니다.
+- 이는 모든 상태가 한 곳에 존재하는 것이 아니라, **특정** 컴포넌트의 존재를 의미합니다.
+- 컴포넌트 간 중복 상태를 공유하는 것이 아니라, 공통 상위 컴포넌트로 **끌어올리고** 필요한 하위 컴포넌트로 **전달**하는 것입니다.
+
+## 요약
+
+- 2개 컴포넌를 조정하고 싶을 때는 상태를 공통 상위 컴포넌트로 옮깁니다.
+- 공통 부모로부터 `props`를 전달합니다.
+- 이벤트 핸들러를 전달하여, 하위 컴포넌트에서 상위 컴포넌트의 상태를 변경할 수 있습니다.
+- 컴포넌트를 제어할지(`props` 활용), 제어하지 않을지(**상태** 활용) 고민하세요.
