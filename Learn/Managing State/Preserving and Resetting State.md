@@ -1,0 +1,792 @@
+# Preserving and Resetting State
+
+- 상태는 컴포넌트 사이에 고립되어 있습니다.
+- `React`는 UI 트리에서 어떤 상태가 어떤 컴포넌트에 존재되는지 구별합니다.
+- 개발자는 리렌더링하는 동안 언제 상태를 보존하고, 언제 상태를 초기화할지 결정할 수 있습니다.
+
+## 배우게 될 것
+
+- `React`가 컴포넌트 구조를 **바라보는** 방법
+- 상태의 보존이나 초기화를 선택하는 시점
+- 컴포넌트의 상태를 초기화하도록 요청하는 방법
+- 키와 타입이 상태 보존 여부에 미치는 영향
+
+## UI 트리
+
+- 브라우저는 UI 모델에 트리 구조를 사용합니다.
+- `DOM`은 `HTLML` 요소를 나타내고, `CSSOM`은 `CSS`를 나타냅니다.
+- 이는 **접근 가능한 트리**입니다.
+  <br><br>
+- `React`도 개발자가 만드는 UI를 관리하거나 모델링하기 위해 트리 구조를 사용합니다.
+- `React`에서는 `JSX`를 통해 **UI 트리**를 생성합ㄴ디ㅏ.
+- 이후 `React DOM`은 UI 트리와 `DOM`을 일치시키기 위해 `DOM`을 업데이트합니다.
+
+## 상태는 트리의 위치에 종속적입니다.
+
+- 컴포넌트에 상태를 사용할 때, 상태는 **살아 있는**것이라고 여겨집니다.
+- 하지만 사실 상태는 `React` 내부에 존재하는 것입니다.
+- `React`는 UI 트리에 존재하는 컴포넌트 위치에 따라 상태 조각을 올바른 컴포넌트와 연결합니다.
+  <br><br>
+- `<Counter />` `JSX` 태그가 1개만 존재하지만 2곳의 다른 위치에서 렌더링됩니다.
+
+```js
+import { useState } from 'react';
+
+export default function App() {
+  const counter = <Counter />;
+  return (
+    <div>
+      {counter}
+      {counter}
+    </div>
+  );
+}
+
+function Counter() {
+  const [score, setScore] = useState(0);
+  const [hover, setHover] = useState(false);
+  const className = 'counter' + (hover ? 'hover' : '');
+
+  return (
+    <div
+      className={className}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <h1>{score}</h1>
+      <button onClick={() => setScore(score + 1)}>Add one</button>
+    </div>
+  );
+}
+```
+
+- `React` 트리는 아래와 같습니다.
+
+- `<div>`
+  - `<Counter />`
+  - `<Counter />`
+
+<br>
+
+- 렌더링될 때, UI 트리에 존재하는 각 `Counter`의 위치가 다르므로, 구분된 2개의 `Counter`로 동작합니다.
+- 이런 위치에 대해 생각할 필요는 없지만, 이 방법은 유용하기에 작동 원리는 이해해야 합니다.
+  <br><br>
+- `React`에서 화면에 존재하는 각각의 컴포넌트는 완전히 고립되어 있습니다.
+- 예를 들어 2개의 `Counter`를 나란히 렌더링한다면 각각의 `Counter`는 독립적인 `score`, `hover` 상태를 소유합니다.
+- `Counter`에 존재하는 버튼은 다른 `Counter`에 영향을 끼치지 않습니다.
+
+```js
+import { useState } from 'react';
+
+export default function App() {
+  return (
+    <div>
+      <Counter />
+      <Counter />
+    </div>
+  );
+}
+
+function Counter() {
+  const [score, setScore] = useState(0);
+  const [hover, setHover] = useState(false);
+  const className = 'counter' + (hover ? 'hover' : '');
+
+  return (
+    <div
+      className={className}
+      onPointEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <h1>{score}</h1>
+      <button onClick={() => setScore(score + 1)}>Add one</button>
+    </div>
+  );
+}
+```
+
+- 위에서 보았듯이, 1개 `Counter`가 업데이트되면, 업데이트한 상태의 컴포넌트만 변경됩니다.
+  <br><br>
+- `React`는 같은 동일한 위치에서 동일한 컴포넌트를 렌더링하기 전까지 해당 상태를 유지합니다.
+- 아래의 예제를 보겠습니다.
+- 두 개의 카운터를 모두 증가시킨 다음, `Render the second counter` 체크박스를 해제합니다.
+- 이후 다시 체크박스를 체크 상태로 바꿔봅니다.
+
+```js
+import { useState } from 'react';
+
+export default function App() {
+  const [showB, setShowB] = useState(true);
+  return (
+    <div>
+      <Counter />
+      {showB && <Counter />}
+      <label>
+        <input
+          type='checkbox'
+          checked={showB}
+          onChange={(e) => {
+            setShowB(e.target.checked);
+          }}
+        />
+        Render the second counter
+      </label>
+    </div>
+  );
+}
+
+function Counter() {
+  const [score, setScore] = useState(0);
+  const [hover, setHover] = useState(false);
+  const className = 'counter' + (hover ? 'hover' : '');
+
+  return (
+    <div
+      className={className}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <h1>{score}</h1>
+      <button onClick={() => setScore(score + 1)}>Add one</button>
+    </div>
+  );
+}
+```
+
+- 2번째 `Counter`의 렌더링을 중지했을 때 완전히 사라집니다.
+- `React`가 컴포넌트를 제거할 때 컴포넌트의 상태를 완전히 제거하기 때문입니다.
+  <br><br>
+- `Render the second counter`를 클릭했을 때, 2번째 `Counter` 컴포넌트와 상태는 `score = 0`로 초기화되고 `DOM`에 추가됩니다.
+
+- **UI 트리에서 렌더링된다면, `React` 컴포넌트의 상태를 유지합니다.**
+- 컴포넌트가 제거되거나 다른 컴포넌트가 렌더링된다면 `React`는 상태를 제거합니다.
+
+## 동일 위치의 동일 컴포넌트는 상태를 유지합니다
+
+- 아래 예제는 2개의 다른 `<Counter />` 태그가 존재합니다.
+
+```js
+import { useState } from 'react';
+
+export default function App() {
+  const [isFancy, setIsFancy] = useState(false);
+  return (
+    <div>
+      {isFancy ? <Counter isFancy={true} /> : <Counter isFancy={false} />}
+      <label>
+        <input
+          type='checkbox'
+          checked={isFancy}
+          onChange={(e) => {
+            setIsFancy(e.target.checked);
+          }}
+        />
+        Use fancy styling
+      </label>
+    </div>
+  );
+}
+
+function Counter({ isFancy }) {
+  const [score, setScore] = useState(0);
+  const [hover, setHover] = useState(false);
+
+  let className = 'counter';
+  if (hover) {
+    className += ' hover';
+  }
+  if (isFancy) {
+    className += ' fancy';
+  }
+
+  return (
+    <div
+      className={className}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <h1>{score}</h1>
+      <button onClick={() => setScore(score + 1)}>Add one</button>
+    </div>
+  );
+}
+```
+
+- 체크박스를 조작해도 `Counter`의 상태는 재설정되지 않습니다.
+- `isFancy`가 `true`든 `false`든 상관 없습니다.
+- 루트 `App` 컴포넌트가 반환한 `div` 태그의 첫번째 하위 컴포넌트인 `<Counter />`를 갖고 있습니다.
+  <br><br>
+- 동일 위치의 동일 컴포넌트이기에, `React`는 동일한 카운터로 간주합니다.
+
+## 주의
+
+- `React`에서 중요한 점은 `JSX` 마크업이 아니라 UI **트리의 위치**라는 것을 기억하세요!
+- 아래 컴포넌트는 `if`를 기준으로 다른 `<Counter />` `JSX` 태그가 있는 2개의 `return`문입니다.
+
+```js
+import { useState } from 'react';
+
+export default function App() {
+  const [isFancy, setIsFancy] = useState(false);
+  if (isFancy) {
+    return (
+      <div>
+        <Counter isFancy={true} />
+        <label>
+          <input
+            type='checkbox'
+            checked={isFancy}
+            onChange={(e) => {
+              setIsFancy(e.target.checked);
+            }}
+          />
+          Use fancy styling
+        </label>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <Counter isFancy={false} />
+      <label>
+        <input
+          type='checkbox'
+          checked={isFancy}
+          onChange={(e) => {
+            setIsFancy(e.target.checked);
+          }}
+        />
+        Use fancy styling
+      </label>
+    </div>
+  );
+}
+
+function Counter({ isFancy }) {
+  const [score, setScore] = useState(0);
+  const [hover, setHover] = useState(false);
+
+  let className = 'counter';
+  if (hover) {
+    className += ' hover';
+  }
+  if (isFancy) {
+    className += ' fancy';
+  }
+
+  return (
+    <div
+      className={className}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <h1>{score}</h1>
+      <button onClick={() => setScore(score + 1)}>Add one</button>
+    </div>
+  );
+}
+```
+
+- 체크박스를 선택하면, 상태가 재설정된 것으로 예상할 수 있지만 그렇게 동작하지 않습니다.
+- 왜냐하면 모든 `<Counter />` 태그가 **같은 위치에 렌더링**되기 때문입니다.
+- `React`는 조건절 위치를 알 수 없습니다.
+- **보이는** 모든 것은 반환되는 트리입니다.
+- 두 경우 모두 `App` 컴포넌트는 `<Counter />`의 첫번째 하위 컴포넌트인 `<div>`를 반환합니다.
+- `React`가 같은 `<Counter />`로 간주하는 이유입니다.
+  <br><br>
+- 동일한 **주소**를 갖는 것으로 생각할 수 있습니다. (루트의 첫번째 하위 컴포넌트의 첫번째 하위 컴포넌트)
+- 로직에 관계없이 이전 렌더링과 다음 렌더링을 일치시키는 방법입니다.
+
+## 같은 위치에 서로 다른 컴포넌트의 존재는 상태를 초기화합니다
+
+- 아래 예제의 체크박스 선택은 `<Counter>`를 `<p>`로 교체합니다.
+
+```js
+import { useState } from 'react';
+
+export default function App() {
+  const [isPaused, setIsPaused] = useState(false);
+  return (
+    <div>
+      {isPaused ? <p>See you later!</p> : <Counter />}
+      <label>
+        <input
+          type='checkbox'
+          checked={isPaused}
+          onChange={(e) => {
+            setIsPaused(e.target.checked);
+          }}
+        />
+        Take a break
+      </label>
+    </div>
+  );
+}
+
+function Counter() {
+  const [score, setScore] = useState(0);
+  const [hover, setHover] = useState(false);
+  const className = 'counter' + (hover ? 'hover' : '');
+
+  return (
+    <div
+      className={className}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <h1>{score}</h1>
+      <button onClick={() => setScore(score + 1)}>Add one</button>
+    </div>
+  );
+}
+```
+
+- 같은 위치에 서로 다른 컴포넌트를 교체할 수 있습니다.
+- 초기엔, `<div>`의 첫번째 컴포넌트는 `Counter`를 갖고 있습니다.
+- `p` 태그로 변경하게 되면 `React`는 UI 트리에서 `Counter`를 제거하고 상태를 파괴합니다.
+  <br><br>
+- **같은 위치에 다른 컴포넌트를 렌더링할 때, 하위 컴포넌트 트리의 모든 상태를 초기화합니다.**
+- 동작 원리를 이해하려면 카운터를 증가시키고 체크박스를 체크해보세요.
+
+```js
+import { useState } from 'react';
+
+export default function App() {
+  const [isFancy, setIsFancy] = useState(false);
+  return (
+    <div>
+      {isFancy ? (
+        <div>
+          <Counter isFancy={true} />
+        </div>
+      ) : (
+        <section>
+          <Counter isFancy={false} />
+        </section>
+      )}
+      <label>
+        <input
+          type='checkbox'
+          checked={isFancy}
+          onChange={(e) => {
+            setIsFancy(e.target.checked);
+          }}
+        />
+        Use fancy styling
+      </label>
+    </div>
+  );
+}
+
+function Counter({ isFancy }) {
+  const [score, setScore] = useState(0);
+  const [hover, setHover] = useState(false);
+
+  let className = 'counter';
+  if (hover) {
+    className += ' hover';
+  }
+  if (isFancy) {
+    className += ' fancy';
+  }
+
+  return (
+    <div
+      className={className}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <h1>{score}</h1>
+      <button onClick={() => setScore(score + 1)}>Add one</button>
+    </div>
+  );
+}
+```
+
+- `Counter`의 상태는 체크박스를 클릭할 때마다 초기화됩니다.
+- `Counter`를 렌더링해도, `div`의 첫번째 하위 컴포넌트는 `section`으로 변경됩니다.
+- 하위 `div`가 `DOM`에서 제거될 때, 하위 트리는 모두 제거됩니다.
+  <br><br>
+- 일반적으로 리렌더링 간의 상태를 보존하고 싶다면, UI 트리 구조는 렌더링 간 일치해야 합니다.
+- 구조가 달라진다면, 상태는 파괴될 것입니다.
+- UI 트리구조에서 컴포넌트가 삭제될 때, `React`가 모든 상태를 제거하기 때문입니다.
+
+## 주의
+
+- 컴포넌트 함수를 중첩하여 사용하면 안 되는 이유입니다.
+- 아래 예제는 `MyComponent` **내부**에 존재하는 `MyTextField` 컴포넌트입니다.
+
+```js
+import { useState } from 'react';
+
+export default function MyComponent() {
+  const [counter, setCounter] = useState(0);
+
+  function MyTextField() {
+    const [text, setText] = useState('');
+
+    return <input value={text} onChange={(e) => setText(e.target.value)} />;
+  }
+
+  return (
+    <>
+      <MyTextField />
+      <button
+        onClick={() => {
+          setCounter(counter + 1);
+        }}
+      >
+        Clicked {counter} times
+      </button>
+    </>
+  );
+}
+```
+
+- 클릭할 때마다 `input` 상태는 사라집니다.
+- 왜냐하면 `MyTextField` 함수는 `MyComponent`가 렌더링 될 때마다 달라지기 때문입니다.
+- 같은 위치에서 다른 컴포넌트를 렌더링한다면 `React`는 하위 모든 상태를 초기화합니다.
+- 이로 인해 버그, 성능 저하가 발생합니다.
+- 이 문제를 피하기 위해 모든 컴포넌트 함수는 최상단에서 선언되어야 하며 중첩되선 안 됩니다.
+
+## 같은 위치의 상태를 초기화
+
+- 같은 위치에 계속 존재하는 상태의 보존이 `React`의 디폴트입니다.
+- 대부분 이러한 기능을 원하기에 합리적인 기본 동작입니다.
+- 하지만 컴포넌트의 상태를 초기화 하고 싶을 때가 있습니다.
+- 2명의 플레이어 점수가 계속 유지되는 예제를 살펴보겠습니다.
+
+```js
+import { useState } from 'react';
+
+export default function Scoreboard() {
+  const [isPlayerA, setIsPlayerA] = useState(true);
+  return (
+    <div>
+      {isPlayerA ? <Counter person='Taylor' /> : <Counter person='Sarah' />}
+      <button
+        onClick={() => {
+          setIsPlayerA(!isPlayerA);
+        }}
+      >
+        Next player!
+      </button>
+    </div>
+  );
+}
+
+function Counter({ person }) {
+  const [score, setScore] = useState(0);
+  const [hover, setHover] = useState(false);
+  const className = 'counter' + (hover ? 'hover' : '');
+
+  return (
+    <div
+      className={className}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <h1>
+        {person}'s score: {score}
+      </h1>
+      <button onClick={() => setScore(score + 1)}>Add one</button>
+    </div>
+  );
+}
+```
+
+- 선수를 변경해도 점수가 보존됩니다.
+- 2개의 `Counter`는 같은 위치에 존재하기 때문에 변경되는 `person` `prop`을 갖고 있는 **같은** `Counter`로 간주합니다.
+  <br><br>
+- 하지만 2개의 카운터로 나뉜다고 생각하는 것이 일반적입니다.
+- 카운터는 UI 트리의 동일한 위치에 존재하지만 `Taylor`, `Sarah` 2명의 카운터 컴포넌트처럼 말이죠.
+  <br><br>
+- 플레이어를 변경하며 상태를 초기화하는 2가지 방법이 있습니다.
+
+1. 다른 위치에 컴포넌트 렌덜이하기
+2. 각 컴포넌트에 명시적인 `key` 부여하기
+
+## 방법 1: 다른 위치에 컴포넌트 렌더링하기
+
+- 2개 `Counter`를 독립적으로 바꾸려면 다른 위치에 렌더링하면 된다.
+
+```js
+import { useState } from 'react';
+
+export default function Scoreboard() {
+  const [isPlayerA, setIsPlayerA] = useState(true);
+  return (
+    <div>
+      {isPlayerA && <Counter person='Taylor' />}
+      {!isPlayerA && <Counter person='Sarah' />}
+      <button
+        onClick={() => {
+          setIsPlayerA(!isPlayerA);
+        }}
+      >
+        Next player!
+      </button>
+    </div>
+  );
+}
+
+function Counter({ person }) {
+  const [score, setScore] = useState(0);
+  const [hover, setHover] = useState(false);
+  const className = 'counter' + (hover ? 'hover' : '');
+
+  return (
+    <div
+      className={className}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <h1>
+        {person}'s score: {score}
+      </h1>
+      <button onClick={() => setScore(score + 1)}>Add one</button>
+    </div>
+  );
+}
+```
+
+- `isPlayerA`의 초기값은 `true`입니다.
+- 첫번째 위치는 `Counter` 상태를 소유하고 두번째는 비어있습니다.
+- `Next Player` 버튼을 클릭할 때 첫번째 위치는 사라지고 두번째 위치에 `Counter`가 존재합니다.
+
+> `Counter`의 상태는 `DOM`에서 삭제될 때마다 파괴됩니다.  
+> 버튼을 클릭할 때마다 컴포넌트가 초기화되는 이유입니다.
+
+<br>
+
+- 같은 위치에 렌더링되는 컴포넌트 개수가 적은 경우 편리합니다.
+- 위의 예는 2가지의 경우만 존재하므로 어렵지 않았습니다.
+
+## 방법 2 : key를 활용하여 상태 초기화
+
+- 컴포넌트의 상태를 초기화하는 더 일반적인 방법입니다.
+  <br><br>
+- 리스트를 렌더링할 때 `keys`를 사용했을 겁니다.
+- `key`는 리스트에만 적용되는 것이 아닙니다.
+- 컴포넌트를 구별할 때도 사용됩니다.
+- 기본적으로 `React`는 컴포넌트를 구별하기 위해서 순서를 사용합니다. (첫번째 `Counter`, 두번째 `Counter`)
+- 하지만 `key`를 사용하면 특정 카운터로 명명할 수 있습니다. (`Taylor`의 `Counter`)
+- 트리의 위치에 상관없이 `Taylor`의 `Counter`를 인식할 수 있습니다.
+  <br><br>
+- 아래 예제는 같은 위치에 존재함에도 불구하고 상태를 공유하지 않습니다.
+
+```js
+import { useState } from 'react';
+
+export default function Scoreboard() {
+  const [isPlayerA, setIsPlayerA] = useState(true);
+  return (
+    <div>
+      {isPlayerA ? (
+        <Counter key='Taylor' person='Taylor' />
+      ) : (
+        <Counter key='Sarah' person='Sarah' />
+      )}
+      <button
+        onClick={() => {
+          setIsPlayerA(!isPlayerA);
+        }}
+      >
+        Next player!
+      </button>
+    </div>
+  );
+}
+
+function Counter({ person }) {
+  const [score, setScore] = useState(0);
+  const [hover, setHover] = useState(false);
+  const className = 'counter' + (hover ? 'hover' : '');
+
+  return (
+    <div
+      className={className}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <h1>
+        {person}'s score: {score}
+      </h1>
+      <button onClick={() => setScore(score + 1)}>Add one</button>
+    </div>
+  );
+}
+```
+
+- `Taylor`와 `Sarah`를 변경하는 것이 상태를 보존하지는 않습니다.
+- 상이한 `key`를 전달하기 때문이죠.
+
+```js
+{
+  isPlayerA ? (
+    <Counter key='Taylor' person='Taylor' />
+  ) : (
+    <Counter key='Sarah' person='Sarah' />
+  );
+}
+```
+
+<br>
+
+- `key`를 식별하는 것은 상위 컴포넌트의 순서 대신, `key` 자체를 위치로 사용할 수 있습니다.
+- 그렇기에, `JSX`에서 같은 위치에 렌더링하더라도 `React` 관점에서는 다른 `Counter`입니다.
+- 결과적으로 2개 `Counter`는 상태를 공유하지 않습니다.
+- `Counter`가 화면에 나타날 때마다 새로운 상태가 생성됩니다.
+- `Counter`가 제거될 때마다 상태는 파괴됩니다.
+- `Counter`를 토글하는 것은 상태를 초기화합니다.
+
+> `key`는 전역에서 고유하게 존재하는 것이 아닙니다. (전역 변수 X)  
+> 상위 컴포넌트 내부의 위치만 결정합니다.
+
+## key를 활용해 `form` 초기화하기
+
+- key를 활용한 초기화는 `form`을 다룰 때 특히 유용합니다.
+- 아래의 채팅 예제에서 `<Chat>` 컴포넌트는 텍스트의 입력 상태를 갖고 있습니다.
+
+```js
+// App.js
+import { useState } from 'react';
+import Chat from './Chat.js';
+import ContactList from './ContactList.js';
+
+export default function Messenger() {
+  const [to, setTo] = useState(contacts[0]);
+  return (
+    <div>
+      <ContactList
+        contacts={contacts}
+        selectedContact={to}
+        onSelect={(contact) => setTo(contact)}
+      />
+      <Chat contact={to} />
+    </div>
+  );
+}
+
+const contacts = [
+  { id: 0, name: 'Taylor', email: 'taylor@mail.com' },
+  { id: 1, name: 'Alice', email: 'alice@mail.com' },
+  { id: 2, name: 'Bob', email: 'bob@mail.com' },
+];
+```
+
+```js
+// ContactList.js
+export default function ContactList({ selectedContact, contacts, onSelect }) {
+  return (
+    <section className='contact-list'>
+      <ul>
+        {contacts.map((contact) => (
+          <li key={contact.id}>
+            <button
+              onClick={() => {
+                onSelect(contact);
+              }}
+            >
+              {contact.name}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+```
+
+```js
+// Chat.js
+import { useState } from 'react';
+
+export default function Chat({ contact }) {
+  const [text, setText] = useState('');
+  return (
+    <section className='chat'>
+      <textarea
+        value={text}
+        placeholder={'Chat to ' + contact.name}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <br />
+      <button>Send to {contact.email}</button>
+    </section>
+  );
+}
+```
+
+- `input`에 무언가 입력하고 `Alice` or `Bob`을 눌러보세요.
+- `<Chat>`이 UI 트리의 동일한 위치에 렌더링되기 때문에 입력 상태는 보존됩니다.
+  <br><br>
+- **이 기능은 대부분의 앱에서 유용하지만, 채팅 앱은 예외입니다.**
+- 원하지 않는 사람에게 잘못된 텍스트를 전달하는 실수를 바라진 않을 겁니다.
+- `key`를 추가하여 고쳐볼까요?
+
+```js
+<Chat key={to.id} contact={to} />
+```
+
+<br>
+
+- 아래 예제는 다른 사람을 선택할 때 하위 트리의 상태를 포함한 `Chat` 컴포넌트가 처음부터 다시 생성됩니다.
+- 사람을 선택할 때마다 텍스트 필드는 초기화됩니다.
+
+```js
+import { useState } from 'react';
+import Chat from './Chat.js';
+import ContactList from './ContactList.js';
+
+export default function Messenger() {
+  const [to, setTo] = useState(contacts[0]);
+  return (
+    <div>
+      <ContactList
+        contacts={contacts}
+        selectedContact={to}
+        onSelect={(contact) => setTo(contact)}
+      />
+      <Chat key={to.id} contact={to} />
+    </div>
+  );
+}
+
+const contacts = [
+  { id: 0, name: 'Taylor', email: 'taylor@mail.com' },
+  { id: 1, name: 'Alice', email: 'alice@mail.com' },
+  { id: 2, name: 'Bob', email: 'bob@mail.com' },
+];
+```
+
+## Deep Dive - 삭제된 컴포넌트의 상태 유지하기
+
+- 실제 채팅 프로그램에선 이전에 채팅했던 사람을 클릭했을 때 입력 값이 유지되도록 구현되어 있습니다.
+- 더 이상 보이지 않는 컴포넌트의 상태를 **살아있게** 유지하는 몇 가지 방법이 존재합니다.
+
+1. 모든 채팅방을 렌더링하지만, 렌더링되는 것을 제외한 나머지의 `CSS`는 숨깁니다.
+
+   - 채팅방은 UI 트리에서 사라지지 않고 지역 상태 변수도 유지됩니다.
+   - 간단한 UI에서는 잘 동작합니다.
+   - 하지만 숨겨지는 UI 트리가 크거나 많은 `DOM` 노드가 존재하는 경우 속도가 느립니다.
+
+2. 상태를 끌어올리고, 상위 컴포넌트에 존재하는 수신자의 입력 메시지를 저장할 수 있습니다.
+
+   - 하위 컴포넌트가 삭제될 떄는 문제 없지만, 상위 컴포넌트가 중요한 데이터를 소유하고 있으므로 상위 컴포넌트의 관리가 중요합니다.
+   - 일반적인 방법입니다.
+
+3. `React` 상태에 다른 데이터륾 추가할 수 있습니다.
+   - 예를 들어 사용자가 실수로 채팅방을 닫았을 때도 메시지가 유지되길 바랍니다.
+   - `Chat` 컴포넌트는 `localStorage`로부터 읽혀 초기화되어야 하고, 메시지 초안도 저장할 수 있습니다.
+
+- 어떤 상태 유지 전략을 선택하든, `Alice`와의 채팅은 `Bob`과 분리되어 있습니다.
+- 따라서 현재 채팅방을 기준으로 `Chat` 트리에 `key`를 부여하는 것이 좋습니다.
+
+## 요약
+
+- 동일 위치, 동일 컴포넌트로 존재하는 한 상태를 유지합니다.
+- 상태는 `JSX` 태그에서 유지되는 것이 아닙니다.
+  - `JSX`가 삽입되는 UI 트리의 위치에 좌우됩니다.
+- `key`를 부여함으로써, 서브 트리의 상태를 초기화할 수 있습니다.
+- 컴포넌트 중첩하여 정의하면 안 됩니다.
