@@ -1,0 +1,736 @@
+# Passing Data Deeply with Context
+
+- 일반적으로 상위 컴포넌트에서 `props`을 통해 하위 컴포넌트로 정보를 전달합니다.
+- 그러나 중간에 많은 컴포넌트를 통과해야 하거나 많은 컴포넌트가 동일한 정보를 필요로 하는 경우, 전달하는 `props`이 거대하고 어렵습니다.
+- **컨텍스트**를 사용하면 상위 컴포넌트가 `props`을 명시적으로 전달하지 않아도 모든 컴포넌트에서 데이터를 사용할 수 있습니다.
+
+## 배우게 될 것
+
+- `props drilling`이란?
+- 반복적인 `prop` 전달을 컨텍스트로 대체하는 방법
+- 컨텍스트의 일반적 사용법
+- 컨텍스트의 일반적 대안
+
+## `props` 전달할 때의 문제점
+
+- **`props`를 전달하는 것은** UI 트리를 사용하여 컴포넌트에 데이터를 전달하는 훌륭한 방법입니다.
+- 하지만 UI 트리 깊이 전달해야 하거나, 많은 컴포넌트에서 같은 `prop`이 필요한 경우 불편하고 장황해집니다.
+- 가장 가까운 공통 상위 컴포넌트는 데이터가 필요한 컴포넌트로부터 멀리 떨어진 경우가 존재합니다.
+- 상태를 끌어올리면 `props drilling`이라는 상황이 발생할 수 있습니다.
+  <br><br>
+- `props`을 거치지 않고 데이터를 **텔레포트**하는 방법이 있다면 좋지 않ㅇ르까요?
+- `React`의 컨텍스트 기능은 가능합니다.
+
+## 컨텍스트: `props`를 전달하는 다른 방법
+
+- 컨텍스트를 사용하면 상위 컴포넌트가 하위 트리 전체에 데이터를 전달할 수 있습니다.
+- 아래 예시는 많은 컨텍스트 사용법 중 하나입니다.
+- 사이즈를 정하기 위해 `level`을 전달받는 `Heading` 컴포넌트입니다.
+
+```js
+// App.js
+import Heading from './Heading.js';
+import Section from './Section.js';
+
+export default function Page() {
+  return (
+    <Section>
+      <Heading level={1}>Title</Heading>
+      <Heading level={2}>Heading</Heading>
+      <Heading level={3}>Sub-heading</Heading>
+      <Heading level={4}>Sub-sub-heading</Heading>
+      <Heading level={5}>Sub-sub-sub-heading</Heading>
+      <Heading level={6}>Sub-sub-sub-sub-heading</Heading>
+    </Section>
+  );
+}
+```
+
+```js
+// Heading.js
+export default function Heading({ level, children }) {
+  switch (level) {
+    case 1:
+      return <h1>{children}</h1>;
+    case 2:
+      return <h2>{children}</h2>;
+    case 3:
+      return <h3>{children}</h3>;
+    case 4:
+      return <h4>{children}</h4>;
+    case 5:
+      return <h5>{children}</h5>;
+    case 6:
+      return <h6>{children}</h6>;
+    default:
+      throw Error('Unknown level: ' + level);
+  }
+}
+```
+
+```js
+// Section.js
+export default function Section({ children }) {
+  return <section className='section'>{children}</section>;
+}
+```
+
+<br>
+
+- `<Section>`끼리 통일된 제목의 크기를 가지는 경우입니다.
+
+```js
+// App.js
+import Heading from './Heading.js';
+import Section from './Section.js';
+
+export default function Page() {
+  return (
+    <Section>
+      <Heading level={1}>Title</Heading>
+      <Section>
+        <Heading level={2}>Heading</Heading>
+        <Heading level={2}>Heading</Heading>
+        <Heading level={2}>Heading</Heading>
+        <Section>
+          <Heading level={3}>Sub-heading</Heading>
+          <Heading level={3}>Sub-heading</Heading>
+          <Heading level={3}>Sub-heading</Heading>
+          <Section>
+            <Heading level={4}>Sub-sub-heading</Heading>
+            <Heading level={4}>Sub-sub-heading</Heading>
+            <Heading level={4}>Sub-sub-heading</Heading>
+          </Section>
+        </Section>
+      </Section>
+    </Section>
+  );
+}
+```
+
+```js
+// Heading.js
+export default function Heading({ level, children }) {
+  switch (level) {
+    case 1:
+      return <h1>{children}</h1>;
+    case 2:
+      return <h2>{children}</h2>;
+    case 3:
+      return <h3>{children}</h3>;
+    case 4:
+      return <h4>{children}</h4>;
+    case 5:
+      return <h5>{children}</h5>;
+    case 6:
+      return <h6>{children}</h6>;
+    default:
+      throw Error('Unknown level: ' + level);
+  }
+}
+```
+
+```js
+// Section.js
+export default function Section({ children }) {
+  return <section className='section'>{children}</section>;
+}
+```
+
+<br>
+
+- `level` `prop`을 각 `<Heading>`에 전달하는 경우입니다.
+
+```js
+<Section>
+  <Heading level={3}>About</Heading>
+  <Heading level={3}>Photos</Heading>
+  <Heading level={3}>Videos</Heading>
+</Section>
+```
+
+<br>
+
+- `<Section>` 컴포넌트에 `level` `prop`을 전달해 `<Heading>` `level`을 삭제하면 더 좋습니다.
+- 같은 `<Section>`의 모든 `<Heading>`이 같은 크기를 갖도록 적용할 수 있습니다.
+
+```js
+<Section level={3}>
+  <Heading>About</Heading>
+  <Heading>Photos</Heading>
+  <Heading>Videos</Heading>
+</Section>
+```
+
+<br>
+
+- 하지만 `<Heading>` 컴포넌트는 가장 가까운 `<Section>`의 `level`을 어떻게 알까요?
+- 하위 컴포넌트가 상위 트리의 데이터를 **요청**하는 방법이 필요합니다.
+  <br><br>
+- `props`만으론 구현할 수 없습니다.
+- 여기가 컨텍스트가 적용되는 부분입니다.
+- 컨텍스트는 아래 3단계로 진행됩니다.
+
+1. 컨텍스트 **생성** (제목 `level`을 위한 것이므로 `LevelContext`라고 부릅니다.)
+2. 데이터가 필요한 컴포넌트에서 컨텍스트 **사용** (`Heading`은 `LevelContext` 사용)
+3. 데이터를 지정하는 컴포넌트에서 컨텍스트 **제공** (`Section`은 `LevelContext` 제공)
+
+- 컨텍스트를 통해 상위 컴포넌트는 데이터를 트리 내부에 전달할 수 있습니다.
+
+## 1단계: 컨텍스트 생성
+
+- 가장 먼저, 컨텍스트를 생성해야 합니다.
+- **파일에서 `export`하여** 컴포넌트가 사용할 수 있도록 해야 합니다.
+
+```js
+// App.js
+import Heading from './Heading.js';
+import Section from './Section.js';
+
+export default function Page() {
+  return (
+    <Section>
+      <Heading level={1}>Title</Heading>
+      <Section>
+        <Heading level={2}>Heading</Heading>
+        <Heading level={2}>Heading</Heading>
+        <Heading level={2}>Heading</Heading>
+        <Section>
+          <Heading level={3}>Sub-heading</Heading>
+          <Heading level={3}>Sub-heading</Heading>
+          <Heading level={3}>Sub-heading</Heading>
+          <Section>
+            <Heading level={4}>Sub-sub-heading</Heading>
+            <Heading level={4}>Sub-sub-heading</Heading>
+            <Heading level={4}>Sub-sub-heading</Heading>
+          </Section>
+        </Section>
+      </Section>
+    </Section>
+  );
+}
+```
+
+```js
+// LevelContext.js
+import { createContext } from 'react';
+export const LevelContext = createContext(1);
+```
+
+```js
+// Heading.js
+export default function Heading({ level, children }) {
+  switch (level) {
+    case 1:
+      return <h1>{children}</h1>;
+    case 2:
+      return <h2>{children}</h2>;
+    case 3:
+      return <h3>{children}</h3>;
+    case 4:
+      return <h4>{children}</h4>;
+    case 5:
+      return <h5>{children}</h5>;
+    case 6:
+      return <h6>{children}</h6>;
+    default:
+      throw Error('Unknown level: ' + level);
+  }
+}
+```
+
+```js
+// Heading.js
+export default function Section({ children }) {
+  return <section className='section'>{children}</section>;
+}
+```
+
+- `createContext`의 인수는 **기본값**뿐입니다.
+- 여기서 `1`은 가장 큰 제목을 의미하지만, 모든 종류의 값을 전달할 수 있습니다.
+- 기본값의 중요성은 다음 단계에서 살펴보겠습니다.
+
+## 2단계: 컨텍스트 사용
+
+- `React`의 `useContext`와 위에서 생성한 `LevelContext`를 `import`합니다.
+
+```js
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+```
+
+<br>
+
+- 현재 `<Heading>` 컴포넌트는 `props`을 통해 `level`을 사용합니다.
+
+```js
+export default function Heading({ level, children }) {
+  // ...
+}
+```
+
+<br>
+
+- `level` `prop`을 삭제하고 `import`했던 `LevelContext`에서 값을 읽어오겠습니다.
+
+```js
+export default function Heading({ children }) {
+  const level = useContext(LevelContext);
+  // ...
+}
+```
+
+<br>
+
+- `useContext`는 `Hook`입니다.
+- 따라서 `useState`, `useReducer`처럼 컴포넌트 맨 위에서 호출해야 합니다.
+- `useContext`의 의미는 **`Heading` 컴포넌트가 `LevelContext`를 읽어오길 원한다**는 것입니다.
+  <br><br>
+- 이제 `Heading` 컴포넌트는 `JSX`를 통해 `level` `prop`을 전달하지 않아도 됩니다.
+
+```js
+// App.js
+<Section level={4}>
+  <Heading>Sub-sub-heading</Heading>
+  <Heading>Sub-sub-heading</Heading>
+  <Heading>Sub-sub-heading</Heading>
+</Section>
+```
+
+- 최종 결과입니다.
+
+```js
+import Heading from './Heading.js';
+import Section from './Section.js';
+
+export default function Page() {
+  return (
+    <Section level={1}>
+      <Heading>Title</Heading>
+      <Section level={2}>
+        <Heading>Heading</Heading>
+        <Heading>Heading</Heading>
+        <Heading>Heading</Heading>
+        <Section level={3}>
+          <Heading>Sub-heading</Heading>
+          <Heading>Sub-heading</Heading>
+          <Heading>Sub-heading</Heading>
+          <Section level={4}>
+            <Heading>Sub-sub-heading</Heading>
+            <Heading>Sub-sub-heading</Heading>
+            <Heading>Sub-sub-heading</Heading>
+          </Section>
+        </Section>
+      </Section>
+    </Section>
+  );
+}
+```
+
+```js
+// LevelContext.js
+import { createContext } from 'react';
+export const LevelContext = createContext(1);
+```
+
+```js
+// Heading.js
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Heading({ children }) {
+  const level = useContext(LevelContext);
+  switch (level) {
+    case 1:
+      return <h1>{children}</h1>;
+    case 2:
+      return <h2>{children}</h2>;
+    case 3:
+      return <h3>{children}</h3>;
+    case 4:
+      return <h4>{children}</h4>;
+    case 5:
+      return <h5>{children}</h5>;
+    case 6:
+      return <h6>{children}</h6>;
+    default:
+      throw Error('Unknown level: ' + level);
+  }
+}
+```
+
+```js
+// Section.js
+export default function Section({ children }) {
+  return <section className='asection'>{children}</section>;
+}
+```
+
+- 하지만 아직 잘 동작하지 않습니다.
+- 컨텍스트를 사용했지만, 제공하지는 않았기에 모든 `Heading`이 같은 `size`를 갖고 있기 때문입니다.
+- `React`는 제공해주지 않으면 모릅니다.
+
+## 3단계: 컨텍스트 제공
+
+- `Section` 컴포넌트는 `children`을 렌더링하고 있습니다.
+
+```js
+export default function Section({ children }) {
+  return <section className='section'>{children}</section>;
+}
+```
+
+<br>
+
+- `LelvelContext.Provider`를 사용하여 `LevelContext`를 래핑합니다.
+
+```js
+import { LevelContext } from './LevelContext.js';
+
+export default function Section({ level, children }) {
+  return (
+    <section className='section'>
+      <LevelContext.Provider value={level}>{children}</LevelContext.Provider>
+    </section>
+  );
+}
+```
+
+<br>
+
+- `React`에게 `<Section>` 내에 `LevelContext`를 요청하는 컴포넌트가 있다면 `level`을 전달하라고 알려주는 것입니다.
+- 컴포넌트는 상위 UI 트리에서 가장 가까운 `<LevelContext.Provider>`의 값을 사용합니다.
+
+```js
+// App.js
+import Heading from './Heading.js';
+import Section from './Section.js';
+
+export default function Page() {
+  return (
+    <Section level={1}>
+      <Heading>Title</Heading>
+      <Section level={2}>
+        <Heading>Heading</Heading>
+        <Heading>Heading</Heading>
+        <Heading>Heading</Heading>
+        <Section level={3}>
+          <Heading>Sub-heading</Heading>
+          <Heading>Sub-heading</Heading>
+          <Heading>Sub-heading</Heading>
+          <Section level={4}>
+            <Heading>Sub-sub-heading</Heading>
+            <Heading>Sub-sub-heading</Heading>
+            <Heading>Sub-sub-heading</Heading>
+          </Section>
+        </Section>
+      </Section>
+    </Section>
+  );
+}
+```
+
+```js
+// LevelContext.js
+import { createContext } from 'react';
+export const LevelContext = createContext(1);
+```
+
+```js
+// Heading.js
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Heading({ children }) {
+  const level = useContext(LevelContext);
+  switch (level) {
+    case 1:
+      return <h1>{children}</h1>;
+    case 2:
+      return <h2>{children}</h2>;
+    case 3:
+      return <h3>{children}</h3>;
+    case 4:
+      return <h4>{children}</h4>;
+    case 5:
+      return <h5>{children}</h5>;
+    case 6:
+      return <h6>{children}</h6>;
+    default:
+      throw Error('Unknown level: ' + level);
+  }
+}
+```
+
+```js
+// Section.js
+import { LevelContext } from './LevelContext.js';
+
+export default function Section({ level, children }) {
+  return (
+    <section className='section'>
+      <LevelContext.Provider value={level}>{children}</LevelContext.Provider>
+    </section>
+  );
+}
+```
+
+- 이전에 작성했던 원본 코드와 동일한 결과이지만, 각 `Heading`에 `level`을 전달하지 않아도 됩니다.
+- 가장 가까운 `Section`에 요청하여 `level`울 **파악합니다.**
+
+1. `<Section>`에 `level` `prop`을 전달합니다.
+2. `Section`은 `children`을 `<LevelContext.Provider value={level}>`로 래핑합니다.
+3. `Heading`은 `useContext(LevelContext)`를 사용하여 가장 가까운 `LevelContext`의 값을 요청합니다.
+
+## 동일 컴포넌트에서 컨텍스트를 사용하고 제공하기
+
+- 여전히 `Section`의 `level`을 지정해주고 있습니다.
+
+```js
+export default function Page() {
+  return (
+    <Section level={1}>
+      <Section level={2}>
+        <Section level={3}></Section>
+      </Section>
+    </Section>
+  );
+}
+```
+
+<br>
+
+- 컨텍스트는 상위 컴포넌트로부터 데이터를 전달받습니다.
+- 각 `Section`은 상위 컴포넌트의 `level`을 전달받고 `level + 1`을 하위 컴포넌트로 전달하는 코드를 보겠습니다.
+- 이러한 변화를 통해 `<Section>`, `<Heading>` 모두 `level` `prop`을 전달할 필요가 없습니다.
+
+```js
+// Section.js
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Section({ children }) {
+  const level = useContext(LevelContext);
+  return (
+    <section className='section'>
+      <LevelContext.Provider value={level + 1}>
+        {children}
+      </LevelContext.Provider>
+    </section>
+  );
+}
+```
+
+```js
+// App.js
+import Heading from './Heading.js';
+import Section from './Section.js';
+
+export default function Page() {
+  return (
+    <Section>
+      <Heading>Title</Heading>
+      <Section>
+        <Heading>Heading</Heading>
+        <Heading>Heading</Heading>
+        <Heading>Heading</Heading>
+        <Section>
+          <Heading>Sub-heading</Heading>
+          <Heading>Sub-heading</Heading>
+          <Heading>Sub-heading</Heading>
+          <Section>
+            <Heading>Sub-sub-heading</Heading>
+            <Heading>Sub-sub-heading</Heading>
+            <Heading>Sub-sub-heading</Heading>
+          </Section>
+        </Section>
+      </Section>
+    </Section>
+  );
+}
+```
+
+- `Section`, `Heading`모두 `LevelContext`를 읽어 얼마나 **깊은** `level`인지 파악합니다.
+- `Section`은 하위 컴포넌트를 `LevelContext`로 래핑하여 내부의 모든 컴포넌트가 **더 깊은** 레벨을 지정할 수 있습니다.
+  <br><br>
+
+> 이 예제는 컴포넌트가 컨텍스트의 재정의를 시각적으로 보여주기 때문에 `<Heading>`의 `level` 사용합니다.  
+> 하지만 컨텍스트는 많은 경우에 유용합니다.  
+> 색상 테마, 현재 로그인한 사용자 등 전체 하위 트리에 정보를 전달하는 데 사용할 수 있습니다.
+
+## 컨텍스트로 중간 컴포넌트 지나치기
+
+- 컨텍스트를 제공하는 컴포넌트와 컨텍스트를 사용하는 컴포넌트 사이에 컴포넌트를 원하는만큼 삽입할 수 있습니다.
+- `<div>` 같은 기본 제공 컴포넌트, 사용자 정의 컴포넌트가 모두 포함됩니다.
+  <br><br>
+- 아래 예제에서 동일한 `Post` 컴포넌트는 2개의 다른 중첩 레벨에서 렌더링됩니다.
+- 내부의 `<Heading>`은 가장 가까운 `<Section>`에서 자동으로 `level`을 얻습니다.
+
+```js
+// App.js
+import Heading from './Heading.js';
+import Section from './Section.js';
+
+export default function ProfilePage() {
+  return (
+    <Section>
+      <Heading>My Profile</Heading>
+      <Post title='Hello traveller!' body='Read about my adventures.' />
+      <AllPosts />
+    </Section>
+  );
+}
+
+function AllPosts() {
+  return (
+    <Section>
+      <Heading>Posts</Heading>
+      <RecentPosts />
+    </Section>
+  );
+}
+
+function RecentPosts() {
+  return (
+    <Section>
+      <Heading>Recent Posts</Heading>
+      <Post title='Flavors of Lisbon' body='...those pastéis de nata!' />
+      <Post title='Buenos Aires in the rhythm of tango' body='I loved it!' />
+    </Section>
+  );
+}
+
+function Post({ title, body }) {
+  return (
+    <Section isFancy={true}>
+      <Heading>{title}</Heading>
+      <p>
+        <i>{body}</i>
+      </p>
+    </Section>
+  );
+}
+```
+
+```js
+// Heading.js
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Heading({ children }) {
+  const level = useContext(LevelContext);
+  switch (level) {
+    case 0:
+      throw Error('Heading must be inside a Section!');
+    case 1:
+      return <h1>{children}</h1>;
+    case 2:
+      return <h2>{children}</h2>;
+    case 3:
+      return <h3>{children}</h3>;
+    case 4:
+      return <h4>{children}</h4>;
+    case 5:
+      return <h5>{children}</h5>;
+    case 6:
+      return <h6>{children}</h6>;
+    default:
+      throw Error('Unknown level: ' + level);
+  }
+}
+```
+
+```js
+// LevelContext.js
+import { createContext } from 'react';
+export const LevelContext = createContext(0);
+```
+
+```js
+// Section.js
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Section({ children, isFancy }) {
+  const level = useContext(LevelContext);
+  return (
+    <section className={'section ' + (isFancy ? 'fancy' : '')}>
+      <LevelContext.Provider value={level + 1}>
+        {children}
+      </LevelContext.Provider>
+    </section>
+  );
+}
+```
+
+- 특별히 추가한 것은 없습니다.
+- `Section`은 트리의 컨텍스트를 지정하므로, 어디에나 `<Heading>`을 삽입할 수 있고 적절한 크기를 가집니다.
+  <br><br>
+- 컨텍스트를 사용하면 **주변 환경에 적응하는** 컴포넌트를 작성하고, **렌더링 위치**에 따라 다르게 표시할 수 있습니다.
+  <br><br>
+- 컨텍스트의 동작 방식은 `CSS` 속성의 상속과 비슷하다고 느낄 수 있습니다.
+- `<div>`의 `CSS`를 `color: blue`와 같이 지정할 수 있습니다.
+- 이는 중간 위치의 다른 `DOM` 노드가 `color: green`으로 덮어쓰지 않는 한, `DOM` 내부 위치와 상관없이 상속됩니다.
+- 이와 같이 `React`에서도 상위 컨텍스트를 덮어쓰는 유일한 방법은 `children`을 다른 `컨텍스트.Provider`로 래핑하는 것입니다.
+  <br><br>
+- `color`, `background-color`와 같은 다른 프로퍼티는 서로를 덮어쓰지 않습니다.
+- 모든 `<div>`의 `color`를 **빨강**으로 변경할 때 `background-color`와는 충돌하지 않습니다.
+- 비슷하게 다른 `React` 컨텍스트끼리는 덮어쓰지 않습니다.
+- 각 `createContext`로 생성된 컨텍스트는 다른 컨텍스트와 구분되며, **특정 컨텍스트**를 사용하고 제공하는 컴포넌트끼리 묶여 있습니다.
+- 1개 컴포넌트는 서로 다른 컨텍스트를 사용하고 제공할 것입니다.
+
+## 컨텍스트 사용 전,
+
+- 컨텍스트의 사용은 매력적이지만 과유불급입니다.
+- **`props`를 여러 레벨에 전달해야 한다고 해서 컨텍스트 내부에 데이터를 저장해야 하는 것은 아니기 때문입니다.**
+  <br><br>
+- 컨텍스트를 사용 하기 전 생각해볼 만한 방법들입니다.
+
+1. `props` 전달로 시작
+   - 다소 작은 컴포넌트가 아니라면 12개 컴포넌트를 통해 12개의 `props`를 전달하지는 않습니다.
+   - 귀찮게 느껴질 수 있지만, 컴포넌트가 사용하는 데이터를 명확하게 파악할 수 있습니다.
+   - `props`를 통해 데이터 흐름이 명확해져 유지보수하기 좋습니다.
+2. 컴포넌트를 추출하고 `children`으로 `JSX` 전달
+   - 데이터를 사용하지 않는 중간 컴포넌트를 지나치며 데이터를 전달하면, 일부 컴포넌트의 추출을 잊는 경우가 많습니다.
+   - 예를 들어 `<Layout posts={posts} />`와 같이 `posts`를 직접적으로 사용하지 않는 컴포넌트를 통해 데이터를 전달해야 합니다.
+   - 대신, `Layout`은 `children`으로 `prop`을 받고 `<Layout><Posts posts={posts} /></Layout>`을 렌더링합니다.
+   - 데이터를 지정하는 컴포넌트와 필요한 컴포넌트 사이의 레이어 수가 감소합니다.
+
+<br>
+
+- 2가지 모두 적합하지 않을 때 컨텍스트 사용을 고려합니다.
+
+## 컨텍스트 사용 예시
+
+- 테마 사용
+  - 다크 모드와 같이 유저가 앱의 겉모습을 변경할 수 있다면, 앱의 최상단에 컨텍스트 제공자를 삽입합 수 있고, 겉모습을 조정하는 컴포넌트에서 컨텍스트를 사용할 수 있습니다.
+- 현재 계정
+  - 많은 컴포넌트는 현재 로그인된 유저를 알고 있어야 합니다.
+  - 유저를 컨텍스트에 삽입하면 트리 어디에서나 편하게 확인할 수 있습니다.
+  - 일부 앱에선 여러 계정을 동시에 사용할 수 있습니다. (다른 사용자로 댓글 남기기 등)
+  - 이 경우에는 UI의 일부를 다른 계정의 중첩된 제공자로 래핑하는 것이 좋습니다.
+- 라우팅
+  - 대부분의 라우팅은 현재 경로를 유지하기 위해 내부적으로 컨텍스트를 사용합니다.
+  - 모든 링크의 활성화 여부를 **알** 수 있는 방법입니다.
+  - 라우터를 만든다면 같은 방식으로 할 것입니다.
+- 상태 관리
+  - 앱이 커져감에 따라 앱 상단에 많은 상태가 존재할 것입니다.
+  - 아래의 멀리 떨어진 컴포넌트를 변경해야 할 때가 있습니다.
+  - 컨텍스트와 `reducer`를 활용하는 것이 복잡한 상태를 관리하고 번거로운 작업 없이 멀리 떨어진 컴포넌트까지 값을 전달하는 방법입니다.
+    <br><br>
+- 컨텍스트는 정적인 값에 제한되지 않습니다.
+- 다음 렌더링에서 다른 값을 전달한다면, `React`는 아래의 모든 컴포넌트를 업데이트할 것입니다.
+- 상태와 컨텍스트가 종종 조합되는 이유입니다.
+  <br><br>
+- 일반적으로 서로 멀리 떨어져 있는 컴포넌트가 같은 정보가 필요하다면 컨텍스트를 사용하기 좋다는 징조입니다.
+
+## 요약
+
+- 컨텍스트를 활용하면 컴포넌트의 트리 아래 모든 곳에 데이터를 제공합니다.
+- 컨텍스트 전달 방법은 아래와 같습니다.
+  1. `export const MyContext = createContext(defaultValue)`로 컨텍스트를 생성하고 내보내세요.
+  2. 컨텍스트를 `useContext(MyContext)` `Hook`에 전달해 하위 컴포넌트가 읽을 수 있도록 합니다.
+  3. 상위 컴포넌트로부터 컨텍스트를 제공하기 위해 `children`을 `<MyContext.Provider value={...}>`로 래핑합니다.
+- 컨텍스트는 중간의 컴포넌트를 지나칠 수 있습니다.
+- 컨텍스트를 활용해 **주변에 적응하는** 컴포넌트를 작성할 수 있습니다.
+- 컨텍스트를 사용하기 전에 `props`를 전달하거나 `JSX`를 `children`으로 전달하는 것을 먼저 시도해봅니다.
