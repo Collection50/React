@@ -1,0 +1,852 @@
+# Extracting State Logic into a Reducer
+
+- 상태를 업데이트하는 로직이 여러 이벤트 핸들러에 분산된 컴포넌트는 양이 많아 부담스러울 수 있습니다.
+- 모든 상태 업데이트 로직을 컴포넌트 외부에서 `reducer` 단일 함수로 통합할 수 있습니다.
+
+## 배우게 될 것
+
+- `reducer` 함수란 무엇인가
+- `useState`에서 `useReducer`로 리펙토링 하는 방법
+- `reducer` 사용 시기
+- `reducer`를 잘 작성하는 방법
+
+## reducer를 사용하여 상태 로직 통합하기
+
+- 컴포넌트가 복잡해지면서, 컴포넌트의 상태가 업데이트되는 다양한 방식을 단 번에 파악하기는 어렵습니다.
+- 예를 들어 `TaskApp` 컴포넌트는 상태에서 `tasks`를 저장하고 있고 추가, 삭제, 편집하는 3개의 이벤트 핸들러를 사용합니다.
+
+```js
+// App.js
+import { useState } from 'react';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+
+let nextId = 3;
+const initialTasks = [
+  { id: 0, text: 'Visit Kafka Museum', done: true },
+  { id: 1, text: 'Watch a puppet show', done: false },
+  { id: 2, text: 'Lennon Wall pic', done: false },
+];
+
+export default function TaskApp() {
+  const [tasks, setTasks] = useState(initialTasks);
+
+  function handleAddTask(text) {
+    setTasks([
+      ...tasks,
+      {
+        id: nextId++,
+        text: text,
+        done: false,
+      },
+    ]);
+  }
+
+  function handleChangeTask(task) {
+    setTasks(
+      tasks.map((t) => {
+        if (t.id === task.id) {
+          return task;
+        }
+        return t;
+      })
+    );
+  }
+
+  function handleDeleteTask(taskId) {
+    setTasks(tasks.filter((t) => t.id !== taskId));
+  }
+
+  return (
+    <>
+      <h1>Prague itinerary</h1>
+      <AddTask onAddTask={handleAddTask} />
+      <TaskList
+        tasks={tasks}
+        onChangeTask={handleChangeTask}
+        onDeleteTask={handleDeleteTask}
+      />
+    </>
+  );
+}
+```
+
+```js
+// AddTask.js
+import { useState } from 'react';
+
+export default function AddTask({ onAddTask }) {
+  const [text, setText] = useState('');
+  return (
+    <>
+      <input
+        placeholder='Add task'
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <button
+        onClick={() => {
+          setText('');
+          onAddTask(text);
+        }}
+      >
+        Add
+      </button>
+    </>
+  );
+}
+```
+
+```js
+// TaskList.js
+import { useState } from 'react';
+
+export default function TaskList({ tasks, onChangeTask, onDeleteTask }) {
+  return (
+    <ul>
+      {tasks.map((task) => (
+        <li key={task.id}>
+          <Task task={task} onChange={onChangeTask} onDelete={onDeleteTask} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Task({ task, onChange, onDelete }) {
+  const [isEditing, setIsEditing] = useState(false);
+  let taskContent;
+  if (isEditing) {
+    taskContent = (
+      <>
+        <input
+          value={task.text}
+          onChange={(e) => {
+            onChange({
+              ...task,
+              text: e.target.value,
+            });
+          }}
+        />
+        <button onClick={() => setIsEditing(false)}>Save</button>
+      </>
+    );
+  } else {
+    taskContent = (
+      <>
+        {task.text}
+        <button onClick={() => setIsEditing(true)}>Edit</button>
+      </>
+    );
+  }
+  return (
+    <label>
+      <input
+        type='checkbox'
+        checked={task.done}
+        onChange={(e) => {
+          onChange({
+            ...task,
+            done: e.target.checked,
+          });
+        }}
+      />
+      {taskContent}
+      <button onClick={() => onDelete(task.id)}>Delete</button>
+    </label>
+  );
+}
+```
+
+- 각각의 이벤트 핸들러는 상태를 업데이트하기 위해 `setTasks`를 호출합니다.
+- 컴포넌트가 커질수록 상태를 다루는 로직도 늘어나게 됩니다.
+- 복잡성를 줄이고 접근성을 높이기 위해 컴포넌트 내부의 상태 로직을 외부의 단일 함수 `reducer`로 옮길 수 있습니다.
+  <br><br>
+- `reducer`는 상태를 다루는 다른 방법입니다.
+- 아래 3단계에 걸쳐 `useState`에서 `useReducer`로 바꿀 수 있습니다.
+
+1. 상태 설정이 아닌 동작 `dispatch`로 **교체**
+2. `reducer` 함수 **정의**
+3. 컴포넌트에서 `reducer` **사용**
+
+## 1단계: 상태 설정이 아닌, 동작 `dispatch`로 교체
+
+- 이벤트 핸들러는 상태를 설정하여 수행 작업을 지정합니다.
+
+```js
+function handleAddTask(text) {
+  setTasks([
+    ...tasks,
+    {
+      id: nextId++,
+      text: text,
+      done: false,
+    },
+  ]);
+}
+
+function handleChangeTask(task) {
+  setTasks(
+    tasks.map((t) => {
+      if (t.id === task.id) {
+        return task;
+      } else {
+        return t;
+      }
+    })
+  );
+}
+
+function handleDeleteTask(taskId) {
+  setTasks(tasks.filter((t) => t.id !== taskId));
+}
+```
+
+- 모든 상태 설정 로직을 제거해볼까요?
+- 제거하고 남은 것은 3개의 이벤트 핸들러입니다.
+
+- `handleAddTask(text)`: `Add` 버튼을 누를때 호출됩니다.
+- `handleChangeTask(task)`: `task`를 토글하거나 `Save`를 누르면 호출됩니다.
+- `handleDeleteTask(taskId)`: `Delete` 버튼을 누를때 호출됩니다.
+
+- `reducer`를 활용한 상태 관리는 직접적인 상태 관리와 사뭇 다릅 니다.
+- 상태 설정은 **해야할 것**을 전달합니다.
+- 반면 `reducer`는 이벤트 핸들러에서 동작을 `dispatch`하여 **유저가 동작했던 것**을 지정합니다.
+  - 상태 업데이트 로직은 다른 곳에 존재합니다.
+- 이벤트 핸들러를 통한 **상태 설정** 대신, 추가/변경/삭제를 `dispatch`합니다.
+- 이는 사용자의 의도를 더 잘 설명합니다.
+
+```js
+function handleAddTask(text) {
+  dispatch({
+    type: 'added',
+    id: nextId++,
+    text: text,
+  });
+}
+
+function handleChangeTask(task) {
+  dispatch({
+    type: 'changed',
+    task: task,
+  });
+}
+
+function handleDeleteTask(taskId) {
+  dispatch({
+    type: 'deleted',
+    id: taskId,
+  });
+}
+```
+
+- `dispatch` 함수에 전달하는 객체를 **동작**이라고 부릅니다.
+
+<br>
+
+```js
+function handleDeleteTask(taskId) {
+  dispatch(
+    // "action" object:
+    {
+      type: 'deleted',
+      id: taskId,
+    }
+  );
+}
+```
+
+- 이 객체는 `JS`의 일반적인 객체입니다.
+- 이 안에 어떤 것이든 저장할 수 있지만, **어떤 일이 발생했는지**에 관한 최소한의 정보가 필요합니다.
+  - `dispatch` 함수 자체는 이후에 다룰 예정입니다.
+
+### 메모
+
+- 동작 객체는 어떤 형태로든 존재할 수 있습니다.
+- 일반적으로 어떤 상황이 발생했는지 설명하기 위해 문자열 `type`을 넘겨주고 이외의 정보는 다른 필드에 담아서 전달합니다.
+- `type`은 컴포넌트마다 다르며 아래 예시에선 `added` or `added_task`가 좋습니다.
+- 어떤 일이 발생했는지 설명할 수 있는 이름을 사용합니다.
+
+```js
+dispatch({
+  // 컴포넌트마다 다름
+  type: 'what_happened',
+  // 다른 필드 작성
+});
+```
+
+## 2단계: `reducer` 함수 정의
+
+- `reducer` 함수는 상태 로직을 넣는 곳입니다.
+- **현재 상태**와 **동작 객체**, 2개의 인수를 가지며 다음 상태를 반환합니다.
+
+```js
+function yourReducer(state, action) {
+  //  다음 상태 반환
+}
+```
+
+- `React`는 상태를 `reducer`로부터 반환된 것으로 변경합니다.
+- 이벤트 핸들러에 존재하는 상태 설정 로직을 `reducer` 함수로 교체하는 방법은 아래와 같습니다.
+
+1. 첫 번째 인수로 현재 상태(`tasks`) 선언
+2. 두 번째 인수로 `action` 객체 선언
+3. `reducer`로부터 **다음 상태** 반환
+
+- 상태 설정 로직에서 `reducer`로 마이그레이션된 함수입니다.
+
+```js
+function tasksReducer(tasks, action) {
+  if (action.type === 'added') {
+    return [
+      ...tasks,
+      {
+        id: action.id,
+        text: action.text,
+        done: false,
+      },
+    ];
+  }
+  if (action.type === 'changed') {
+    return tasks.map((t) => {
+      if (t.id === action.task.id) {
+        return action.task;
+      }
+      return t;
+    });
+  }
+  if (action.type === 'deleted') {
+    return tasks.filter((t) => t.id !== action.id);
+  }
+  throw Error('Unknown action: ' + action.type);
+}
+```
+
+> `reducer` 함수는 상태(`tasks`)를 인수로 취하기 때문에 상태는 컴포넌트 밖에 선언해야 합니다.  
+> 들여쓰기 단계를 줄이고 가독성을 향상시킵니다.
+
+### 메모
+
+- `if/else`로 작성된 코드를 `switch`문으로 리팩토링합니다.
+- 결과는 동일하지만 좋은 가독성을 유지할 수 있습니다.
+
+```js
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    }
+    case 'changed': {
+      return tasks.map((t) => {
+        if (t.id === action.task.id) {
+          return action.task;
+        }
+        return t;
+      });
+    }
+    case 'deleted': {
+      return tasks.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error('Unknown action: ' + action.type);
+    }
+  }
+}
+```
+
+- 서로 다른 `case`에서 선언된 변수들이 충돌하지 않도록 `case` 블록을 중괄호(`{`, `}`)로 감싸는 것이 좋습니다.
+- `case`는 `return`문과 함께 사용됩니다.
+- `return`문을 사용하지 않는다면 다음 `case`도 실행되어 오류가 발생할 수 있습니다.
+
+## Deep Dive - `reducer`는 어떻게 호출될까?
+
+- `reducer`는 컴포넌트의 내부의 코드 양을 **줄일** 수 있습니다.
+- 하지만 배열 내장 함수인 `reduce` 이름에서 유래되었습니다.
+  <br><br>
+- `reduce` 함수는 배열의 값을 1개 값으로 계산합니다.
+
+```js
+const arr = [1, 2, 3, 4, 5];
+const sum = arr.reduce((result, number) => result + number); // 1 + 2 + 3 + 4 + 5
+```
+
+<br>
+
+- `reduce`에 전달하는 함수는 `reducer`로 알려져 있습니다.
+- `reduce`는 지금까지의 **결과**와 **현재 요소**를 인수로 받고 **다음 결과**를 반환합니다.
+- `reducer`는 지금까지의 **상태**와 **동작**을 인수로 받고 **다음 상태**를 반환합니다.
+  <br><br>
+- `reduce` 함수는 `initialState` 배열, `reducer` 함수를 전달하여 최종 상태를 계산하는 `actions` 배열에 사용할 수 있습니다.
+
+```js
+// index.js
+import tasksReducer from './tasksReducer.js';
+
+let initialState = [];
+let actions = [
+  { type: 'added', id: 1, text: 'Visit Kafka Museum' },
+  { type: 'added', id: 2, text: 'Watch a puppet show' },
+  { type: 'deleted', id: 1 },
+  { type: 'added', id: 3, text: 'Lennon Wall pic' },
+];
+
+const finalState = actions.reduce(tasksReducer, initialState);
+const output = document.getElementById('output');
+output.textContent = JSON.stringify(finalState, null, 2);
+```
+
+```js
+// taskReducer.js
+export default function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    }
+    case 'changed': {
+      return tasks.map((t) => {
+        if (t.id === action.task.id) {
+          return action.task;
+        }
+        return t;
+      });
+    }
+    case 'deleted': {
+      return tasks.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error('Unknown action: ' + action.type);
+    }
+  }
+}
+```
+
+- 직접 구현할 필요는 없지만, `React`의 동작과 유사합니다.
+
+## 3단계: 컴포넌트에서 `reducer` 사용하기
+
+- 마지막으로, `tasksReducer`를 컴포넌트에 연결해야 합니다.
+- `React`에서 `useReducer` `Hook`을 `import`해야 합니다.
+
+```js
+import { useReducer } from 'react';
+```
+
+<br>
+
+- `useState`를 `useReducer`로 대체할 수 있습니다.
+
+```js
+const [tasks, setTasks] = useState(initialTasks);
+```
+
+```js
+const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+```
+
+<br>
+
+- `useReducer` `Hook`은 초기값을 입력받고, **상태 값**과 **상태 설정 함수**를 반환하는 점에서 `useState`와 비슷합니다.
+- 하지만 조금 다른 점이 존재합니다.
+  <br><br>
+- `useReducer` `Hook`은 2개의 인수를 가집니다.
+
+1. `reducer` 함수
+2. 초기 상태
+
+- 반환값
+
+1. 상태 값
+2. `dispatch` 함수 (`reducer`에 사용자 동작을 `dispatch`하기 위한)
+
+<br>
+
+- 모든 준비가 끝났습니다.
+- 아래 예시의 컴포넌트 파일 아래에 `reducer`가 선언되어 있습니다.
+
+```js
+// App.js
+import { useReducer } from 'react';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+
+let nextId = 3;
+const initialTasks = [
+  { id: 0, text: 'Visit Kafka Museum', done: true },
+  { id: 1, text: 'Watch a puppet show', done: false },
+  { id: 2, text: 'Lennon Wall pic', done: false },
+];
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+
+  function handleAddTask(text) {
+    dispatch({
+      type: 'added',
+      id: nextId++,
+      text: text,
+    });
+  }
+
+  function handleChangeTask(task) {
+    dispatch({
+      type: 'changed',
+      task: task,
+    });
+  }
+
+  function handleDeleteTask(taskId) {
+    dispatch({
+      type: 'deleted',
+      id: taskId,
+    });
+  }
+
+  return (
+    <>
+      <h1>Prague itinerary</h1>
+      <AddTask onAddTask={handleAddTask} />
+      <TaskList
+        tasks={tasks}
+        onChangeTask={handleChangeTask}
+        onDeleteTask={handleDeleteTask}
+      />
+    </>
+  );
+}
+
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    }
+    case 'changed': {
+      return tasks.map((t) => {
+        if (t.id === action.task.id) {
+          return action.task;
+        }
+        return t;
+      });
+    }
+    case 'deleted': {
+      return tasks.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error('Unknown action: ' + action.type);
+    }
+  }
+}
+```
+
+```js
+// AddTask.js
+import { useState } from 'react';
+
+export default function AddTask({ onAddTask }) {
+  const [text, setText] = useState('');
+  return (
+    <>
+      <input
+        placeholder='Add task'
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <button
+        onClick={() => {
+          setText('');
+          onAddTask(text);
+        }}
+      >
+        Add
+      </button>
+    </>
+  );
+}
+```
+
+```js
+// TaskList.js
+import { useState } from 'react';
+
+export default function TaskList({ tasks, onChangeTask, onDeleteTask }) {
+  return (
+    <ul>
+      {tasks.map((task) => (
+        <li key={task.id}>
+          <Task task={task} onChange={onChangeTask} onDelete={onDeleteTask} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Task({ task, onChange, onDelete }) {
+  const [isEditing, setIsEditing] = useState(false);
+  let taskContent;
+
+  if (isEditing) {
+    taskContent = (
+      <>
+        <input
+          value={task.text}
+          onChange={(e) => {
+            onChange({
+              ...task,
+              text: e.target.value,
+            });
+          }}
+        />
+        <button onClick={() => setIsEditing(false)}>Save</button>
+      </>
+    );
+  } else {
+    taskContent = (
+      <>
+        {task.text}
+        <button onClick={() => setIsEditing(true)}>Edit</button>
+      </>
+    );
+  }
+
+  return (
+    <label>
+      <input
+        type='checkbox'
+        checked={task.done}
+        onChange={(e) => {
+          onChange({
+            ...task,
+            done: e.target.checked,
+          });
+        }}
+      />
+      {taskContent}
+      <button onClick={() => onDelete(task.id)}>Delete</button>
+    </label>
+  );
+}
+```
+
+- `reducer`를 다른 파일로 분리하는 것도 가능합니다.
+
+```js
+// App.js
+import { useReducer } from 'react';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+import tasksReducer from './tasksReducer.js';
+
+let nextId = 3;
+const initialTasks = [
+  { id: 0, text: 'Visit Kafka Museum', done: true },
+  { id: 1, text: 'Watch a puppet show', done: false },
+  { id: 2, text: 'Lennon Wall pic', done: false },
+];
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+
+  function handleAddTask(text) {
+    dispatch({
+      type: 'added',
+      id: nextId++,
+      text: text,
+    });
+  }
+
+  function handleChangeTask(task) {
+    dispatch({
+      type: 'changed',
+      task: task,
+    });
+  }
+
+  function handleDeleteTask(taskId) {
+    dispatch({
+      type: 'deleted',
+      id: taskId,
+    });
+  }
+
+  return (
+    <>
+      <h1>Prague itinerary</h1>
+      <AddTask onAddTask={handleAddTask} />
+      <TaskList
+        tasks={tasks}
+        onChangeTask={handleChangeTask}
+        onDeleteTask={handleDeleteTask}
+      />
+    </>
+  );
+}
+```
+
+- 관심사의 분리는 컴포넌트 로직의 가독성을 향상시킵니다.
+- 이벤트 핸들러는 동작을 `dispatch`하여 **발생된 일**만 지정하면 되고, `reducer`는 **상태 업데이트 방법**을 결정합니다.
+
+## `useState` vs `useReducer`
+
+- `reducer`가 은탄환은 아닙니다.
+
+1. 코드의 양
+   - `useState`는 더 적은 코드로 작성될 수 있습니다.
+   - `useReducer`는 `reducer` 함수와 `dispatch` 동작을 작성해야 합니다.
+   - 하지만 `useReducer`는 **많은 이벤트 핸들러가 유사한 방식으로 상태를 수정**할 때 유용합니다.
+2. 가독성
+   - `useState`는 상태 업데이트가 단순할 때 가독성이 좋습니다.
+   - 조금 더 복잡해지면, 코드 양이 늘어나 읽기 어렵습니다.
+   - `useReducer`를 사용하면 **업데이트 로직**과 **이벤트 핸들러에서 발생한 일**을 명확하게 분리할 수 있습니다.
+3. 디버깅
+   - `useState`에서 버그를 만나면, **왜**, **어디서** 상태가 잘못 설정되었는지 찾기 어렵습니다.
+   - `useReducer`는 `console.log`를 활용하여 모든 상태 업데이트, 오류 발생 이유를 확인할 수 있습니다.
+   - 각 `action`이 정확하다면 실수는 `reducer` 로직 자체에서 발생했다고 알 수 있습니다.
+   - 하지만 `useState`보다 더 많은 코드가 필요합니다.
+4. 테스트
+   - `reducer`는 다른 컴포넌트에 의존하지 않는 순수 함수입니다.
+   - 즉, 별도로 `epoxrt` 테스트할 수 있습니다.
+   - 일반적으로 더 현실적인 환경에서 테스트하는 것이 좋습니다.
+   - 하지만 복잡한 상태 업데이트 로직은 `reducer`가 특정 상태를 반환한다고 생각하며 테스트하는 것이 좋습니다.
+5. 개인 취향
+   - 어떤 사람은 `reducer`를 좋아하고 어떤 사람은 아닙ㄴ디ㅏ.
+   - 이것은 취향의 영역입니다.
+   - 언제든지 `useState`, `useReducer`를 오가며 로직을 작성할 수 있습니다.
+
+<br>
+
+- 컴포넌트의 잘못된 상태 업데이트 로직에서 버그가 발생할 때, 코드에 복잡한 구조를 추가할 때 `reducer` 사용을 권장합니다.
+- 모든 곳에 `reducer`를 사용할 필요는 없습니다.
+- `useReducer`, `useState`를 같은 컴포넌트에서 사용할 수도 있습니다.
+
+## `reducer`를 잘 정의하기
+
+- `reducer`를 작성할 때 지켜야할 2가지 팁입니다.
+
+1. `reducer`는 순수 함수여야 한다.
+   - 상태 업데이트 함수와 비슷하게, `reducer`는 렌더링 도중 동작합니다. (`action`은 다음 렌더링까지 대기)
+   - 즉, `reducer`는 동일 입력, 동일 출력을 수행하는 순수 함수여야 합니다.
+   - `request` 전송, 시간 초과 설정, 부수 효과 작업을 수행하면 안 됩니다.
+   - 객체나 배열의 업데이트를 수행해야 합니다.
+2. 데이터가 변경되더라도, 각 동작은 단일 1개 유저 인터랙션을 설명합니다.
+   - 5개 필드가 있는 `form`은 `reducer`로 관리되고 있습니다.
+   - `Reset` 버튼을 클릭한다면 5개의 개별 `set_field` 동작보다 `reset_from` 1개를 `dispatch`하는 것이 합리적입니다.
+   - `reducer` 내부에서 모든 동작을 기록한다면, 인터랙션이나 응답의 순서를 재구성할 수 있을 정도로 명확하게 기록해야 합니다.
+
+## `Immer`를 사용하여 효율적으로 `reducer` 사용하기
+
+- 보통의 상태에서 객체, 배열을 업데이트 하는 것처럼, `Immer` 라이브러리를 사용하면 `reducer`를 효율적으로 작성할 수 있습니다.
+- `useImmerReducer`를 사용하면 `push`, `arr[i] = x` 등을 사용하여 상태를 변경할 수 있습니다.
+
+```js
+import { useImmerReducer } from 'use-immer';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+
+function tasksReducer(draft, action) {
+  switch (action.type) {
+    case 'added': {
+      draft.push({
+        id: action.id,
+        text: action.text,
+        done: false,
+      });
+      break;
+    }
+    case 'changed': {
+      const index = draft.findIndex((t) => t.id === action.task.id);
+      draft[index] = action.task;
+      break;
+    }
+    case 'deleted': {
+      return draft.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error('Unknown action: ' + action.type);
+    }
+  }
+}
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useImmerReducer(tasksReducer, initialTasks);
+
+  function handleAddTask(text) {
+    dispatch({
+      type: 'added',
+      id: nextId++,
+      text: text,
+    });
+  }
+
+  function handleChangeTask(task) {
+    dispatch({
+      type: 'changed',
+      task: task,
+    });
+  }
+
+  function handleDeleteTask(taskId) {
+    dispatch({
+      type: 'deleted',
+      id: taskId,
+    });
+  }
+
+  return (
+    <>
+      <h1>Prague itinerary</h1>
+      <AddTask onAddTask={handleAddTask} />
+      <TaskList
+        tasks={tasks}
+        onChangeTask={handleChangeTask}
+        onDeleteTask={handleDeleteTask}
+      />
+    </>
+  );
+}
+
+let nextId = 3;
+const initialTasks = [
+  { id: 0, text: 'Visit Kafka Museum', done: true },
+  { id: 1, text: 'Watch a puppet show', done: false },
+  { id: 2, text: 'Lennon Wall pic', done: false },
+];
+```
+
+- `reducer`는 순수해야 하며, 상태를 변경하면 안 됩니다.
+- 하지만 `Immer`의 특수한 `draft` 객체를 통해 상태를 안전하게 변경할 수 있습니다.
+- 내부적으로, `Immer`는 `draft`의 변경 사항을 포함한 상태의 복사본을 생성합니다.
+- `useImmerReducer`에 의해 관리되는 `reducer`가 첫 번째 인수를 변환할 수 있고 상태를 반환할 필요가 없는 이유입니다.
+
+## 요약
+
+- `useState`에서 `useReducer`로 변환하는 단계
+
+  1. 이벤트 핸들러에서 동작을 `dispatch`합니다.
+  2. 주어진 상태와 동작의 다음 상태를 반환하는 `reducer` 함수를 작성합니다.
+  3. `useState`를 `useReducer`로 바꿉니다.
+     <br><br>
+
+- `reducer`는 코드를 더 작성해야 하지만 디버깅과 테스트에 유용합니다.
+- `reducer`는 순수해야 합니다.
+- 각 동작은 단일 유저 인터랙션을 설명합니다.
+- 변경하는 방식으로 `reducer`를 사용하기 위해선 `Immer`를 사용합니다.
