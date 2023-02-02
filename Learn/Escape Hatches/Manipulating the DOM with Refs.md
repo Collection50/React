@@ -1,0 +1,568 @@
+# Manipulating the DOM with Refs
+
+- 렌더링 결과와 일치하도록 `DOM`을 자동으로 업데이트 하므로 컴포넌트가 `DOM`을 조작할 필요 없습니다.
+- 하지만 노드를 포커스하거나, 스크롤하거나, 사이즈나 위치 계산과 같이 `React`가 관리하는 `DOM` 요소에 접근할 필요가 있습니다.
+- 위의 경우 `React`가 하는 기본 동작이 아니기에, `DOM` 노드에 `ref`가 필요합니다.
+
+## 배우게 될 것
+
+- `ref` 어트리뷰트로 `React`가 관리하는 `DOM` 노드에 접근하는 방법
+- `ref` `JSX` 어트리뷰트와 `useRef` `Hook`의 관련성
+- 다른 컴포넌트 `DOM` 노드에 접근하는 방법
+- `React`가 관리하는 `DOM`을 수정해도 안전한 경우
+
+## 노드에 대한 ref 가져오기
+
+- `React`에서 관리되는 `DOM` 노드에 접근하려면 `useRef` `Hook`을 `import`해야 합니다.
+
+```js
+import { useRef } from 'react';
+```
+
+<br>
+
+- 그 다음 컴포넌트 안에 `ref`를 선언해야 합니다.
+
+```js
+const myRef = useRef(null);
+```
+
+<br>
+
+- 마지막으로 `ref` 어트리뷰트로 `DOM` 노드에 전달합니다.
+
+```js
+<div ref={myRef}>
+```
+
+<br>
+
+- `useRef` `Hook`은 `current`라고 불리는 단일 프로퍼티와 함께 객체를 반환합니다.
+- 초기의 `myRef.current`는 `null`값입니다.
+- `React`가 `<div>`에 대한`DOM` 노드를 생성할 때, `React`는 이 노드에 대한 참조를 `myRef.current`에 할당합니다.
+- 이벤트 핸들러에서 `DOM` 노드에 접근할 수 있고, 노드에 정의된 기본 제공 브라우저 API를 사용할 수 있습니다.
+
+```js
+// 브라우저 API 사용 예시
+myRef.current.scrollIntoView();
+```
+
+## 텍스트 인풋 포커싱 예제
+
+- 아래 예제에서 버튼을 클릭하는 것은 `input`을 포커싱합니다.
+
+```js
+import { useRef } from 'react';
+
+export default function Form() {
+  const inputRef = useRef(null);
+
+  function handleClick() {
+    inputRef.current.focus();
+  }
+
+  return (
+    <>
+      <input ref={inputRef} />
+      <button onClick={handleClick}>Focus the input</button>
+    </>
+  );
+}
+```
+
+- 동작 순서는 아래와 같습니다.
+
+1. `useRef` `Hook`을 통해 `inputRef` 선언
+2. `<input ref={inputRef}>`에 전달하기
+   - `React`에게 `<input>`의 `DOM` 노드를 `inputRef.current`에 전달하는 기능입니다.
+3. `handleClick` 함수에서 `inputRef.current`에서 `input` `DOM` 노드를 참조하고, `inputRef.current.focus()`를 통해 `focus()`를 호출합니다.
+4. `<button>`의 `onClick`에 `handleClick`을 전달합니다.
+
+<br>
+
+- `ref`의 일반적인 사용법이 `DOM` 조작이지만, `useRef` `Hook`은 타이머 ID와 같은 `React` 외부의 다른 것을 저장하는데 사용할 수 있습니다.
+- 상태와 유사하게 `ref`는 렌더링 사이에도 유지됩니다.
+- `ref`는 상태 변수와 비슷하지만, 값을 변경해도 리렌더링을 트리거하지는 않습니다.
+
+## 요소로 스크롤 이동하기 예제
+
+- 1개 컴포넌트에 여러 `ref`가 존재할 수 있습니다.
+- 아래 예제엔 3개 이미지로 구성된 회전식 카메라가 구현되어 있습니다.
+- 각 버튼은 `DOM` 노드에 상응하는 `scrollIntoView` 브라우저 메서드를 호출하여 이미지를 정중앙에 위치시킵니다.
+
+```js
+import { useRef } from 'react';
+
+export default function CarFriends() {
+  const firstCatRef = useRef(null);
+  const secondCatRef = useRef(null);
+  const thirdCatRef = useRef(null);
+
+  function handleScrollToFirstCat() {
+    firstCatRef.current.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    });
+  }
+
+  function handleScrollToSecondCat() {
+    secondCatRef.current.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    });
+  }
+
+  function handleScrollToThirdCat() {
+    thirdCatRef.current.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    });
+  }
+
+  return (
+    <>
+      <nav>
+        <button onClick={handleScrollToFirstCat}>Tom</button>
+        <button onClick={handleScrollToSecondCat}>Maru</button>
+        <button onClick={handleScrollToThirdCat}>Jellyorum</button>
+      </nav>
+      <div>
+        <ul>
+          <li>
+            <img
+              src="https://placekitten.com/g/200/200"
+              alt="Tom"
+              ref={firstCatRef}
+            />
+          </li>
+          <li>
+            <img
+              src="https://placekitten.com/g/300/200"
+              alt="Maru"
+              ref={secondCatRef}
+            />
+          </li>
+          <li>
+            <img
+              src="https://placekitten.com/g/250/200"
+              alt="Jellyorum"
+              ref={thirdCatRef}
+            />
+          </li>
+        </ul>
+      </div>
+    </>
+  );
+}
+```
+
+## Deep Dive - ref 콜백을 사용하여 ref 리스트를 관리하는 방법
+
+- 위의 예시는 몇 개의 `ref`를 미리 정의했습니다.
+- 하지만 목록의 모든 항목에 각 `ref`가 필요할 수 있고, 몇 개의 항목이 존재하는지 알 수 없습니다.
+- 아래와 같은 코드는 동작하지 않을 겁니다.
+
+```js
+<ul>
+  {items.map((item) => {
+    // 동작 불가!
+    const ref = useRef(null);
+    return <li ref={ref} />;
+  })}
+</ul>
+```
+
+<br>
+
+- 왜냐하면 **`Hook`은 컴포넌트 최상단에서 호출되어야 하기 때문**입니다.
+- `useRef`는 반복문, 조건문 등에서 호출할 수 없습니다.
+  <br><br>
+- 해결 방법은 상위 요소의 단일 `ref`를 가져온 다음 `querySelector`와 같은 `DOM` 조작을 활용하여 개별 하위 노드를 **찾는** 것입니다.
+- 하지만 이는 쉽게 변경될 수 있고, `DOM` 구조가 변경에 취약합니다.
+  <br><br>
+- 다른 방법으로는 **`ref` 어트리뷰트에 함수를 전달하는 것입니다.**
+- 이를 `ref` 콜백이라고 부릅니다.
+- `React`는 `ref`를 변경할 때 `DOM` 노드를 활용하여 `ref` 콜백을 호출하고, 삭제할 때는 `null`을 호출합니다.
+- 이는 배열이나 `Map` 객체를 유지할 수 있고, `ID`나 인덱스를 활용하여 `ref`에 접근할 수 있습니다.
+  <br><br>
+- 아래 예시는 함수 전달 방법을 사용하여 긴 목록의 임의 노드로 스크롤하는 방법입니다.
+
+```js
+import { useRef } from 'react';
+
+const catList = [];
+
+for (let i = 0; i < 10; i++) {
+  catList.push({
+    id: i,
+    imageUrl: `https://placekitten.com/250/200?image=${i}`,
+  });
+}
+
+export default function CatFriends() {
+  const itemsRef = useRef(null);
+
+  function scrollToId(itemId) {
+    const map = getMap();
+    const node = map.get(itemId);
+    node.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    });
+  }
+
+  function getMap() {
+    if (!itemsRef.current) {
+      itemsRef.current = new Map();
+    }
+    return itemsRef.current;
+  }
+
+  return (
+    <>
+      <nav>
+        <button onClick={() => scrollToId(0)}>Tom</button>
+        <button onClick={() => scrollToId(5)}>Maru</button>
+        <button onClick={() => scrollToId(9)}>Jellylorum</button>
+      </nav>
+      <div>
+        <ul>
+          {catList.map((cat) => (
+            <li
+              key={cat.id}
+              // ref에 함수 전달
+              ref={(node) => {
+                const map = getMap();
+                if (node) {
+                  map.set(cat.id, node);
+                } else {
+                  map.delete(cat.id);
+                }
+              }}
+            >
+              <img src={cat.imageUrl} alt={`Cat # ${cat.id}`} />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
+  );
+}
+```
+
+- `itemsRef`는 단일 `DOM` 노드를 가지고 있지 않습니다.
+- 대신, 항목 ID에서 `DOM` 노드까지의 `Map` 객체를 유지합니다. (`ref`는 어떤 값도 소유할 수 있습니다.)
+- 각 요소에 존재하는 `ref` 콜백은 `Map`을 업데이트합니다.
+
+```js
+<li
+  key={cat.id}
+  ref={node => {
+    const map = getMap();
+    if (node) {
+      // Map에 요소 추가
+      map.set(cat.id, node);
+    } else {
+      // Map에서 요소 삭제
+      map.delete(cat.id);
+    }
+  }}
+>
+```
+
+- 이렇게 하면 나중에 `Map`에서 개별 `DOM` 노드를 참조할 수 있습니다.
+
+## 다른 컴포넌트의 DOM 노드에 접근
+
+- `<input />`과 같이 브라우저 요소를 출력하는 빌트인 컴포넌트에 `ref`를 삽입하면, `React`는 `ref`의 `current` 프로퍼티를 `DOM` 노드에 상응하도록 설정합니다.
+  <br><br>
+- 하지만 `ref`를 `<MyInput />`과 같은 사용자 정의 컴포넌트에 삽입하면, 기본적으로 `null`을 마주칠 겁니다.
+- 이를 설명하는 예제를 살펴보겠습니다.
+- 버튼을 클릭하는 것이 `input`에 **포커싱하지 않는 방식**에 유의하세요.
+
+```js
+import { useRef } from 'react';
+
+function MyInput(props) {
+  return <input {...props} />;
+}
+
+export default function MyForm() {
+  const inputRef = useRef(null);
+
+  function handleClick() {
+    inputRef.current.focus();
+  }
+
+  return (
+    <>
+      <MyInput ref={inputRef} />
+      <button onClick={handleClick}>Focus the input</button>
+    </>
+  );
+}
+```
+
+- 에러를 더 쉽게 이해하기 위해 `React`는 아래 에러를 콘솔에 출력합니다.
+
+```js
+// Warning: Function components cannot be given refs.
+// Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+```
+
+<br>
+
+- 기본적으로 `React`는 다른 컴포넌트의 `DOM` 노드에 접근하는 것을 허용하지 않습니다.
+- 자신의 `children`임에도 불구하고 말이죠.
+- `ref`는 조심스럽게 사용해야 하는 **escape hatch**입니다.
+- 다른 컴포넌트의 `DOM` 노드를 수동으로 조작하면 에러가 발생하기 쉽습니다.
+  <br><br>
+- 대신 `DOM` 노드를 노출하려는 컴포넌트는 해당 동작을 선택해야 합니다.
+- 컴포넌트는 `children`에 대한 1개 `ref`를 **전달**하도록 지정할 수 있습니다.
+- `MyInput`이 `forwardRef` API를 사용하는 예시입니다.
+
+```js
+const MyInput = forwardRef((props, ref) => {
+  return <input {...props} ref={ref} />;
+});
+```
+
+<br>
+
+- 동작하는 방식은 아래와 같습니다.
+
+1. `<MyInput ref={inputRef} />`는 상응하는 `DOM` 노드를 `inputRef.current`에 삽입하라고 `React`에게 지시합니다.
+2. `MyInput` 컴포넌트는 `forwardRef`를 사용하여 선언됩니다.
+   - **`props` 뒤의, 2번째 `ref` 인수에서 `inputRef`을 수신합니다.**
+3. `MyInput`는 수신받은 `ref`를 내부 `<input>`에 전달합니다.
+
+```js
+import { forwardRef, useRef } from 'react';
+
+const MyInput = forwardRef((props, ref) => {
+  return <input {...props} ref={ref} />;
+});
+
+export default function Form() {
+  const inputRef = useRef(null);
+
+  function handleClick() {
+    inputRef.current.focus();
+  }
+
+  return (
+    <>
+      <MyInput ref={inputRef} />
+      <button onClick={handleClick}>Focus the input</button>
+    </>
+  );
+}
+```
+
+- 디자인 시스템에서 버튼, 입력과 같은 저수준 컴포넌트가 `ref`를 `DOM` 노드로 전달하는 것은 일반적입니다.
+- 반면, `form`, 리스트, 페이지 섹션과 같은 고수준 컴포넌트는 `DOM` 구조의 우발적인 종속성을 피하기 위해 `DOM` 노드를 노출하지 않습니다.
+
+## React가 ref를 전달할 때
+
+- `React`에서 모든 업데이트는 2단계로 나뉩니다.
+
+1. 렌더링 도중, `React`는 화면에 무엇이 표시되어야 하는지 파악하기 위해 컴포넌트를 호출하빈다.
+2. 커밋하는 동안 `React`는 변경사항을 `DOM`에 적용합니다.
+
+<br>
+
+- 일반적으로 렌더링 도중 `ref`에 접근하고 싶진 않을 겁니다.
+- `DOM` 노드를 보유한 `ref`에도 해당되는 말입니다.
+- 첫 렌더링 때에는 `DOM` 노드는 아직 생성되기기 전이므로 `ref.current`의 값은 `null`입니다.
+- 업데이트 렌더링 중에는 `DOM`노드는 아직 업데이트 되지 않았습니다.
+- 따라서 참조하기엔 너무 이릅니다.
+  <br><br>
+- `React`는 커밋하는 동안 `ref.current`를 변경합니다.
+- `DOM` 업데이트 전, `React`는 관련된 `ref.current` 값을 `null`로 설정합니다.
+- `DOM` 업데이트 후, `React`는 `ref`를 상응하는 `DOM` 노드로 즉시 변경합니다.
+  <br><br>
+- **일반적으로, `ref`를 이벤트 핸들러에서 접근할 겁니다.**
+- `ref`를 활용하고 싶지만 특별한 이벤트가 없다면 `Effect`가 필요할지 모릅니다.
+
+## Deep Dive - fulshSync와 동기적으로 플러시 상태 업데이트
+
+- 새로운 Todo를 추가하고 화면을 목록의 마지막 하위 요소로 이동하는 코드를 살펴보겠습니다.
+- 왜인지 마지막으로 추가된 Todo 직전으로 스크롤됩니다.
+
+```js
+import { useState, useRef } from 'react';
+
+const initialTodos = [];
+let nextId = 0;
+
+for (let i = 0; i < 20; i++) {
+  initialTodos.push({
+    id: nextId++,
+    text: `Todo # ${i + 1}`,
+  });
+}
+
+export default function TodoList() {
+  const listRef = useRef(null);
+  const [text, setText] = useState('');
+  const [todos, setTodos] = useState(initialTodos);
+
+  function handleAdd() {
+    const newTodo = { id: nextId++, text: text };
+    setText('');
+    setTodos([...todos, newTodo]);
+    listRef.current.lastChild.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
+  }
+
+  return (
+    <>
+      <button onClick={handleAdd}>Add</button>
+      <input value={text} onChange={(e) => setText(e.target.value)} />
+      <ul>
+        {todos.map((todo) => (
+          <li key={todo.id}>{todo.text}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+<br>
+
+- 원인은 아래 2줄입니다.
+
+```js
+setTodos([...todos, newTodo]);
+listRef.current.lastChild.scrollIntoView();
+```
+
+- `React`에서 상태 업데이트는 대기열에 추가되는 방식으로 동작합니다.
+- 따라서 `setTodos`는 즉시 `DOM` 업데이트를 수행하지 않습니다.
+- 마지막 요소에 스크롤되는 시간엔 `Todo`가 아직 추가되기 전입니다.
+- 스크롤이 마지막에서 2번째 요소에 있는 이유입니다.
+  <br><br>
+- 이를 해결하려면 `DOM` 동작을 동기적으로 업데이트(`flush`)하도록 강제할 수 있습니다.
+- `react-dom`에서 `flushSync`를 `import`하고 상태 업데이트를 `fulshSync` 호출로 래핑합니다.
+
+```js
+flushSync(() => {
+  setTodos([...todos, newTodo]);
+}
+listRef.current.lastChild.scrollIntoView();
+```
+
+<br>
+
+- 이렇게하면 `React`가 `flushSync`로 래핑된 코드가 실행된 직후에 `DOM`을 동기적으로 업데이트 합니다.
+
+```js
+import { useState, useRef } from 'react';
+import { flushSync } from 'react-dom';
+
+const initialTodos = [];
+let nextId = 0;
+for (let i = 0; i < 20; i++) {
+  initialTodos.push({
+    id: nextId++,
+    text: `Todo # + ${i + 1})`,
+  });
+}
+
+export default function TodoList() {
+  const listRef = useRef(null);
+  const [text, setText] = useState('');
+  const [todos, setTodos] = useState(initialTodos);
+
+  function handleAdd() {
+    const newTodo = { id: nextId++, text: text };
+    flushSync(() => {
+      setText('');
+      setTodos([...todos, newTodo]);
+    });
+    listRef.current.lastChild.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
+  }
+
+  return (
+    <>
+      <button onClick={handleAdd}>Add</button>
+      <input value={text} onChange={(e) => setText(e.target.value)} />
+      <ul ref={listRef}>
+        {todos.map((todo) => (
+          <li key={todo.id}>{todo.text}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+```
+
+## ref를 사용하여 DOM 조작을 하는 좋은 예시
+
+- `ref`는 **escape hatch**입니다.
+- **`React` 외부**일 때만 사용해야 합니다.
+- 예시로는 포커싱 관리, 스크롤 위치 관리, `React`가 노출하지 않는 브라우저 API 호출 등이 있습니다.
+  <br><br>
+- 포커싱이나 스크롤 같은 비파괴적인 동작을 해야 한다면, 어떠한 버그도 발생하면 안 됩니다.
+- 하지만 `DOM`을 수동으로 수정할 때, `React`가 변경하는 내용과 충돌할 수 있습니다.
+  <br><br>
+- 문제를 설명하기 위해 환영 메시지와 2개의 버튼이 포함된 예제를 살펴봅시다.
+- 첫번째 버튼은 조건부 렌더링과 상태를 토글합니다.
+- 두번째 버튼은 `React`의 제어 밖에서 `DOM` 노드를 강제로 삭제하기 위해 `DOM` API인 `remove`를 사용합니다.
+  <br><br>
+- `Toggle with setState`를 몇 번 눌러볼까요?
+- 메시지는 사라졌다 다시 나타날 겁니다.
+- `Remove from the DOM`을 눌러볼까요?
+- 메시지는 강제로 삭제될 것입니다.
+- 마지막으로 `Toggle with setState`를 눌러봅시다.
+
+```js
+import { useState, useRef } from 'react';
+
+export default function Counter() {
+  const [show, setShow] = useState(true);
+  const ref = useRef(null);
+
+  return (
+    <div>
+      <button onClick={() => setShow(!show)}>Toggle with setState</button>
+      <button onClick={() => ref.current.remove()}>Remove from the DOM</button>
+      {show && <p ref={ref}>Hello world</p>}
+    </div>
+  );
+}
+```
+
+<br>
+
+- 수동으로 `DOM` 요소를 제거한 이후 `setState`를 클릭하면 에러가 발생합니다.
+- `DOM`을 수정했기 때문에 `React`는 요소를 올바르게 관리하는 방법을 모르기 때문입니다.
+  <br><br>
+- **`React`에서 관리되는 `DOM` 노드를 변경하지 마세요.**
+- `React`에서 관리되는 요소를 수정하거나, 하위 요소를 추가하거나, 하위 요소를 삭제하는 경우 에러가 발생할 것입니다.
+  <br><br>
+- 하지만 아무것도 할 수 없다는 말은 아닙니다.
+- 주의를 요할 뿐입니다.
+- `React`가 업데이트하지 않는 `DOM`을 안전하게 업데이트할 수 있습니다.
+- 예를 들어 일부 `<div>`는 항상 빈 `JSX`이고, `React`는 `<div>`의 하위 리스트에 관여할 이유가 없습니다.
+- 따라서 수동으로 요소를 추가하거나 삭제하는 것은 안전합니다.
+
+## 요약
+
+- `ref`는 일반적인 개념이지만, 보통 `DOM` 요소를 저장하는데 사용합니다.
+- `React`에게 `<div ref={myRef}>`를 전달하여 `myRef.current`에 `DOM` 노드를 삽입합니다.
+- 일반적으로 포커싱, 스크롤, `DOM` 요소 계산과 같은 비파괴 작업에 `ref`를 사용합니다.
+- 기본적으로 컴포넌트는 `DOM` 요소를 노출하지 않습니다.
+  - `forwardRef`를 사용하고 2번째 `ref` 인수를 특정 노드로 전달하여 `DOM` 노드를 노출할 수 있습니다.
+- `React`에서 관리되는 `DOM` 노드를 수정하지 마세요.
+- `React`에서 관리되는 `DOM` 노드를 수정한다면, React가 업데이트할 이유가 없는 부분을 수정하는 것입니다.
