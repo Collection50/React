@@ -1,0 +1,1073 @@
+# Scaling Up with Reducer and Context
+
+- `reducer`를 사용하면 컴포넌트의 상태 업데이트 로직을 통합할 수 있습니다.
+- 컨텍스트는 깊이 존재하는 다른 컴포넌트에게 데이터를 전달할 수 있게 합니다.
+- 복잡한 화면의 상태를 관리하기 위해 `reducer`와 컨텍스트를 함께 사용합니다.
+
+## 배우게 될 것
+
+- `reducer`와 컨텍스트를 조합하는 방법
+- `prop`을 사용하지 않고 상태와 `dispatch` 함수를 전달하는 방법
+- 별개의 파일로 상태 로직과 컨텍스트를 저장하는 법
+
+## `reducer`와 컨텍스트 조합하기
+
+- `reducer`를 활용한 상태 관리를 배웠습니다.
+- 상태 업데이트 로직을 포함하는 `reducer` 함수는 `App.js` 파일 하단에 정의했습니다.
+
+```js
+// App.js
+import { useReducer } from 'react';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+
+let nextId = 3;
+const initialTasks = [
+  { id: 0, text: 'Philosopher’s Path', done: true },
+  { id: 1, text: 'Visit the temple', done: false },
+  { id: 2, text: 'Drink matcha', done: false },
+];
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+
+  function handleAddTask(text) {
+    dispatch({
+      type: 'added',
+      id: nextId++,
+      text,
+    });
+  }
+
+  function handleChangeTask(task) {
+    dispatch({
+      type: 'chaned',
+      task,
+    });
+  }
+
+  function handleDeleteTask(taskId) {
+    dispatch({
+      type: 'deleted',
+      id: taskId,
+    });
+  }
+
+  return (
+    <>
+      <h1>Day off in Kyoto</h1>
+      <AddTask onAddTask={handleAddTask} />
+      <TaskList
+        tasks={tasks}
+        onChangeTask={handleChangeTask}
+        onDeleteTask={handleDeleteTask}
+      />
+    </>
+  );
+}
+
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    }
+    case 'changed': {
+      return tasks.map((task) => {
+        if (task.id !== action.id) {
+          return action.task;
+        }
+        return task;
+      });
+    }
+    case 'deleted': {
+      return tasks.filter((task) => task.id !== action.id);
+    }
+    default: {
+      throw Error(`Unknown action: ${action.type}`);
+    }
+  }
+}
+```
+
+```js
+// AppTask.js
+import { useState } from 'react';
+
+export default function AddTask({ onAddTask }) {
+  const [text, setText] = useState('');
+  return (
+    <>
+      <input
+        placeholder='Add Task'
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <button
+        onClick={() => {
+          setText('');
+          onAddTask(text);
+        }}
+      >
+        Add
+      </button>
+    </>
+  );
+}
+```
+
+```js
+// TaskList.js
+import { useState } from 'react';
+
+export default function TaskList({ tasks, onChangeTask, onDeleteTask }) {
+  return (
+    <ul>
+      {tasks.map((task) => (
+        <li key={task.id}>
+          <Task task={task} onChange={onChangeTask} onDelete={onDeleteTask} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Task({ task, onChange, onDelete }) {
+  const [isEditing, setIsEditing] = useState(false);
+  let taskContent;
+  if (isEditing) {
+    taskContent = (
+      <>
+        <input
+          value={task.text}
+          onChange={(e) => {
+            onChange({
+              ...task,
+              text: e.target.value,
+            });
+          }}
+        />
+        <button onClick={() => setIsEditing(false)}>Save</button>
+      </>
+    );
+  } else {
+    taskContent = (
+      <>
+        {task.text}
+        <button onClick={() => setIsEditing(true)}>Edit</button>
+      </>
+    );
+  }
+  return (
+    <label>
+      <input
+        type='checkbox'
+        checked={task.done}
+        onChange={(e) => {
+          onChange({
+            ...task,
+            done: e.target.checked,
+          });
+        }}
+      />
+      {taskContent}
+      <button onClick={() => onDelete(task.id)}>Delete</button>
+    </label>
+  );
+}
+```
+
+- `reducer`는 이벤트 핸들러가 짧고 간결하게 유지될 수 있도록 도와줍니다.
+- 하지만 앱의 크기가 커져감에 따라 다른 어려움이 생깁니다.
+- 위의 `tasks` 상태와 `dispatch` 함수는 `TaskApp` 컴포넌트의 맨 위에서만 사용 가능합니다.
+- 다른 컴포넌트가 `tasks`를 참조하거나 변경하려면, 현재 상태와 이벤트 핸들러를 `props`으로 전달해야 합니다.
+  <br><br>
+- 예를 들어 `TaskApp`은 `tasks`와 이벤트 핸들러를 `TaskList`에 전달합니다.
+
+```js
+<TaskList
+  tasks={tasks}
+  onChangeTask={handleChangeTask}
+  onDeleteTask={handleDeleteTask}
+/>
+```
+
+<br>
+
+- 그리고 `TaskList`는 `Task`에 이벤트 핸들러를 전달합니다.
+
+```js
+<Task task={task} onChange={onChangeTask} onDelete={onDeleteTask} />
+```
+
+<br>
+
+- 비교적 작은 예제에선 잘 동작합니다.
+- 하지만 중간에 수십 수백개의 컴포넌트가 존재하는 경우, 모든 상태와 함수를 전달하는 것은 꽤 난잡할 겁니다.
+  <br><br>
+- 따라서 `tasks`, `dispatch` 함수를 컨텍스트 내부에 넣는 것이 `props`를 전달하는 좋은 방법 중 하나입니다.
+- 이 방법을 사용하면 `TaskApp`의 모든 하위 컴포넌트는 반복적인 `prop drilling` 없이 `tasks`를 참조하고 `dispatch` 할 수 있습니다.
+  <br><br>
+- `reducer`와 컨텍스트를 결합하는 방법입니다.
+
+1. 컨텍스트 **생성**
+2. 컨텍스트 안에 상태, `dispatch` **넣기**
+3. 트리 안에서 컨텍스트 **사용**
+
+## 1단계: 컨텍스트 생성
+
+- `useReducer` `Hook`은 현재 `tasks`와 업데이트 할 수 있는 `dispatch` 함수를 반환합니다.
+
+```js
+const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+```
+
+<br>
+
+- `tasks`, `dispatch`를 트리 아래로 내보내기 위해 2개의 컨텍스트를 사용해야 합니다.
+
+1. `TasksContext`
+   - `tasks` 제공
+2. `TasksDispatchContext`
+   - 컴포넌트가가 동작을 `dispatch`하는 함수 제공
+     <br><br>
+
+- 2개 파일을 `export`하므로, 다른 파일에서 `import`하여 사용할 수 있습니다.
+
+```js
+// TasksContext.js
+import { createContext } from 'react';
+export const TasksContext = createContext(null);
+export const TasksDispatchContext = createContext(null);
+```
+
+- 2개 컨텍스트에 기본 값으로 `null`을 전달하고 있습니다.
+- 실제로 사용되는 값은 `TaskApp` 컴포넌트에서 제공될 겁니다.
+
+## 2단계: 컨텍스트 안에 상태 `dispatch` 넣기
+
+- `TaskApp` 컴포넌트에 2개 컨텍스트를 넣겠습니다.
+- `useReducer`가 반환하는 `tasks`, `dispatch`를 아래 트리 전체에 제공해보겠습니다.
+
+```js
+// TaskApp.js
+import { TasksContext, TasksDispatchContext } from './TasksContext.js';
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+  // ...
+  return (
+    <TasksContext.Provider value={tasks}>
+      <TasksDispatchContext.Provider value={dispatch}>
+        ...
+      </TasksDispatchContext.Provider>
+    </TasksContext.Provider>
+  );
+}
+```
+
+<br>
+
+- 데이터를 `props`와 컨텍스트를 통해 전달하고 있습니다.
+
+```js
+import { useReducer } from 'react';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+import { TasksContext, TasksDispatchContext } from './TasksContext.js';
+
+let nextId = 3;
+const initialTasks = [
+  { id: 0, text: 'Philosopher’s Path', done: true },
+  { id: 1, text: 'Visit the temple', done: false },
+  { id: 2, text: 'Drink matcha', done: false },
+];
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+
+  function handleAddTask(text) {
+    dispatch({
+      type: 'added',
+      id: nextId++,
+      text: text,
+    });
+  }
+
+  function handleChangeTask(task) {
+    dispatch({
+      type: 'changed',
+      task: task,
+    });
+  }
+
+  function handleDeleteTask(taskId) {
+    dispatch({
+      type: 'deleted',
+      id: taskId,
+    });
+  }
+
+  return (
+    <TasksContext.Provider value={tasks}>
+      <TasksDispatchContext.Provider value={dispatch}>
+        <h1>Day off in Kyoto</h1>
+        <AddTask onAddTask={handleAddTask} />
+        <TaskList
+          tasks={tasks}
+          onChangeTask={handleChangeTask}
+          onDeleteTask={handleDeleteTask}
+        />
+      </TasksDispatchContext.Provider>
+    </TasksContext.Provider>
+  );
+}
+
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    }
+    case 'changed': {
+      return tasks.map((t) => {
+        if (t.id === action.task.id) {
+          return action.task;
+        }
+        return t;
+      });
+    }
+    case 'deleted': {
+      return tasks.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error(`Unknown action: ${action.type}`);
+    }
+  }
+}
+```
+
+```js
+// TasksContext.js
+import { createContext } from 'react';
+export const TasksContext = createContext(null);
+export const TasksDispatchContext = createContext(null);
+```
+
+- 이제 `props`를 활용한 데이터 전달을 제거해볼까요?
+
+## 3단계: 트리 안에서 컨텍스트 사용
+
+- 트리 내부로 `tasks`와 이벤트 핸들러를 전달할 필요가 없습니다.
+
+```js
+<TasksContext.Provider value={tasks}>
+  <TasksDispatchContext.Provider value={dispatch}>
+    <h1>Day off in Kyoto</h1>
+    <AddTask />
+    <TaskList />
+  </TasksDispatchContext.Provider>
+</TasksContext.Provider>
+```
+
+<br>
+
+- 대신, `tasks`가 필요한 컴포넌트는 `TasksContext`를 참조하여 사용할 수 있습니다.
+
+```js
+export default function TaskList() {
+  const tasks = useContext(TasksContext);
+  // ...
+}
+```
+
+<br>
+
+- `tasks`를 업데이트하는 컴포넌트는 `TasksDispatchContext`를 참조하여 사용하면 됩니다.
+
+```js
+export default function AddTask() {
+  const [text, setText] = useState('');
+  const dispatch = useContext(TasksDispatchContext);
+  // ...
+  return (
+    // ...
+    <button
+      onClick={() => {
+        setText('');
+        dispatch({
+          type: 'added',
+          id: nextId++,
+          text: text,
+        });
+      }}
+    >
+      Add
+    </button>
+    // ...
+  );
+}
+```
+
+<br>
+
+- **`TaskApp` 컴포넌트는 이벤트 핸들러를 아래로 전달하지 않고, `TaskList` 컴포넌트도 `Task` 컴포넌트에 이벤트 핸들러를 전달하지 않습니다.**
+- 각 컴포넌트는 필요할 때마다 컨텍스트를 참조합니다.
+
+```js
+// App.js
+import { useReducer } from 'react';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+import { TasksContext, TasksDispatchContext } from './TasksContext.js';
+
+const initialTasks = [
+  { id: 0, text: 'Philosopher’s Path', done: true },
+  { id: 1, text: 'Visit the temple', done: false },
+  { id: 2, text: 'Drink matcha', done: false },
+];
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+
+  return (
+    <TasksContext.Provider value={tasks}>
+      <TasksDispatchContext.Provider value={dispatch}>
+        <h1>Day off in Kyoto</h1>
+        <AddTask />
+        <TaskList />
+      </TasksDispatchContext.Provider>
+    </TasksContext.Provider>
+  );
+}
+
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    }
+    case 'changed': {
+      return tasks.map((t) => {
+        if (t.id === action.task.id) {
+          return action.task;
+        }
+        return t;
+      });
+    }
+    case 'deleted': {
+      return tasks.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error(`Unknown action: ${action.type}`);
+    }
+  }
+}
+```
+
+```js
+// TaskContext.js
+import { createContext } from 'react';
+export const TasksContext = createContext(null);
+export const TasksDispatchContext = createContext(null);
+```
+
+```js
+// AddTask.js
+import { useState, useContext } from 'react';
+import { TasksDispatchContext } from './TasksContext.js';
+let nextId = 3;
+
+export default function AddTask() {
+  const [text, setText] = useState('');
+  const dispatch = useContext(TasksDispatchContext);
+  return (
+    <>
+      <input
+        placeholder='Add task'
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <button
+        onClick={() => {
+          setText('');
+          dispatch({
+            type: 'added',
+            id: nextId++,
+            text: text,
+          });
+        }}
+      >
+        Add
+      </button>
+    </>
+  );
+}
+```
+
+```js
+// TaskList.js
+import { useState, useContext } from 'react';
+import { TasksContext, TasksDispatchContext } from './TasksContext.js';
+
+export default function TaskList() {
+  const tasks = useContext(TasksContext);
+  return (
+    <ul>
+      {tasks.map((task) => (
+        <li key={task.id}>
+          <Task task={task} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Task({ task }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const dispatch = useContext(TasksDispatchContext);
+  let taskContent;
+  if (isEditing) {
+    taskContent = (
+      <>
+        <input
+          value={task.text}
+          onChange={(e) => {
+            dispatch({
+              type: 'changed',
+              task: {
+                ...task,
+                text: e.target.value,
+              },
+            });
+          }}
+        />
+        <button onClick={() => setIsEditing(false)}>Save</button>
+      </>
+    );
+  } else {
+    taskContent = (
+      <>
+        {task.text}
+        <button onClick={() => setIsEditing(true)}>Edit</button>
+      </>
+    );
+  }
+
+  return (
+    <label>
+      <input
+        type='checkbox'
+        checked={task.done}
+        onChange={(e) => {
+          dispatch({
+            type: 'changed',
+            task: {
+              ...task,
+              done: e.target.checked,
+            },
+          });
+        }}
+      />
+      {taskContent}
+      <button
+        onClick={() => {
+          dispatch({
+            type: 'deleted',
+            id: task.id,
+          });
+        }}
+      >
+        Delete
+      </button>
+    </label>
+  );
+}
+```
+
+- 상태는 여전히 `TaskApp`의 맨 위에 있으며, `useReducer`로 관리됩니다.
+- 하지만 `tasks`, `dispatch`는 각 컴포넌트에서 사용할 수 있습니다.
+
+## `reducer`와 컨텍스트를 1개 파일로 합치기
+
+- `reducer`와 컨텍스트를 1개 파일에 작성하면 컴포넌트들을 더 간단하게 만들 수 있지만, 필수는 아닙니다.
+- `TasksContext.js`는 2개의 컨텍스트만 선언되었습니다.
+
+```js
+import { createContext } from 'react';
+export const TasksContext = createContext(null);
+export const TasksDispatchContext = createContext(null);
+```
+
+<br>
+
+- 파일이 더 복잡해질 겁니다.
+- `reducer`를 같은 파일로 옮겨야 합니다.
+- 이후 같은 파일에 `TasksProvider` 컴포넌트를 새로 정의해야 합니다.
+- `TasksProvider`는 모든 컴포넌트를 통합합니다.
+
+1. `reducer`로 상태를 관리합니다.
+2. 하위 컴포넌트에 2개 컨텍스트를 제공합니다.
+3. `prop`으로 `children`을 전달받기에, `JSX`를 전달할 수 있습니다.
+
+```js
+export function TasksProvider({ children }) {
+  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+
+  return (
+    <TasksContext.Provider value={tasks}>
+      <TasksDispatchContext.Provider value={dispatch}>
+        {children}
+      </TasksDispatchContext.Provider>
+    </TasksContext.Provider>
+  );
+}
+```
+
+- `taskApp` 컴포넌트의 모든 복잡함이 해소됩니다.
+
+```js
+// App.js
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+import { TasksProvider } from './TasksContext.js';
+
+export default function TaskApp() {
+  return (
+    <TasksProvider>
+      <h1>Day off in Kyoto</h1>
+      <AddTask />
+      <TaskList />
+    </TasksProvider>
+  );
+}
+```
+
+```js
+// TaskContext.js
+import { createContext, useReducer } from 'react';
+
+export const TasksContext = createContext(null);
+export const TasksDispatchContext = createContext(null);
+
+const initialTasks = [
+  { id: 0, text: 'Philosopher’s Path', done: true },
+  { id: 1, text: 'Visit the temple', done: false },
+  { id: 2, text: 'Drink matcha', done: false },
+];
+
+export function TasksProvider({ children }) {
+  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+
+  return (
+    <TasksContext.Provider value={tasks}>
+      <TasksDispatchContext.Provider value={dispatch}>
+        {children}
+      </TasksDispatchContext.Provider>
+    </TasksContext.Provider>
+  );
+}
+
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    }
+    case 'changed': {
+      return tasks.map((t) => {
+        if (t.id === action.task.id) {
+          return action.task;
+        }
+        return t;
+      });
+    }
+    case 'deleted': {
+      return tasks.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error(`Unknown action: ${action.type}`);
+    }
+  }
+}
+```
+
+```js
+// AddTask.js
+import { useState, useContext } from 'react';
+import { TasksDispatchContext } from './TasksContext.js';
+
+let nextId = 3;
+
+export default function AddTask() {
+  const [text, setText] = useState('');
+  const dispatch = useContext(TasksDispatchContext);
+  return (
+    <>
+      <input
+        placeholder='Add task'
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <button
+        onClick={() => {
+          setText('');
+          dispatch({
+            type: 'added',
+            id: nextId++,
+            text: text,
+          });
+        }}
+      >
+        Add
+      </button>
+    </>
+  );
+}
+```
+
+```js
+// TaskList.js
+import { useState, useContext } from 'react';
+import { TasksContext, TasksDispatchContext } from './TasksContext.js';
+
+export default function TaskList() {
+  const tasks = useContext(TasksContext);
+  return (
+    <ul>
+      {tasks.map((task) => (
+        <li key={task.id}>
+          <Task task={task} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Task({ task }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const dispatch = useContext(TasksDispatchContext);
+  let taskContent;
+  if (isEditing) {
+    taskContent = (
+      <>
+        <input
+          value={task.text}
+          onChange={(e) => {
+            dispatch({
+              type: 'changed',
+              task: {
+                ...task,
+                text: e.target.value,
+              },
+            });
+          }}
+        />
+        <button onClick={() => setIsEditing(false)}>Save</button>
+      </>
+    );
+  } else {
+    taskContent = (
+      <>
+        {task.text}
+        <button onClick={() => setIsEditing(true)}>Edit</button>
+      </>
+    );
+  }
+  return (
+    <label>
+      <input
+        type='checkbox'
+        checked={task.done}
+        onChange={(e) => {
+          dispatch({
+            type: 'changed',
+            task: {
+              ...task,
+              done: e.target.checked,
+            },
+          });
+        }}
+      />
+      {taskContent}
+      <button
+        onClick={() => {
+          dispatch({
+            type: 'deleted',
+            id: task.id,
+          });
+        }}
+      >
+        Delete
+      </button>
+    </label>
+  );
+}
+```
+
+- `TasksContext.js`에서 컨텍스트를 사용하는 함수를 `export` 할 수도 있습니다.
+
+```js
+export function useTasks() {
+  return useContext(TasksContext);
+}
+
+export function useTasksDispatch() {
+  return useContext(TasksDispatchContext);
+}
+```
+
+<br>
+
+- 컴포넌트에서 컨텍스트가 필요할 때, 아래 함수를 사용하빈다.
+
+```js
+const tasks = useTasks();
+const dispatch = useTasksDispatch();
+```
+
+<br>
+
+- 결과가 바뀌는 것은 아니지만, 함수에 로직을 추가하거나 컨텍스트를 분리하기 쉽습니다.
+- 모든 컨텍스트와 `reducer`는 `TasksContext.js`에 있습니다.
+- **컴포넌트들가 무엇을 보여줄 것인지에 집중할 수 있도록 쾌적하게 관리할 수 있습니다.**
+
+```js
+// App.js
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+import { TasksProvider } from './TasksContext.js';
+
+export default function TaskApp() {
+  return (
+    <TasksProvider>
+      <h1>Day off in Kyoto</h1>
+      <AddTask />
+      <TaskList />
+    </TasksProvider>
+  );
+}
+```
+
+```js
+// TasksContext.js
+import { createContext, useContext, useReducer } from 'react';
+
+const initialTasks = [
+  { id: 0, text: 'Philosopher’s Path', done: true },
+  { id: 1, text: 'Visit the temple', done: false },
+  { id: 2, text: 'Drink matcha', done: false },
+];
+const TasksContext = createContext(null);
+const TasksDispatchContext = createContext(null);
+
+export function TasksProvider({ children }) {
+  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+
+  return (
+    <TasksContext.Provider value={tasks}>
+      <TasksDispatchContext.Provider value={dispatch}>
+        {children}
+      </TasksDispatchContext.Provider>
+    </TasksContext.Provider>
+  );
+}
+
+export function useTasks() {
+  return useContext(TasksContext);
+}
+
+export function useTasksDispatch() {
+  return useContext(TasksDispatchContext);
+}
+
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    }
+    case 'changed': {
+      return tasks.map((t) => {
+        if (t.id === action.task.id) {
+          return action.task;
+        }
+        return t;
+      });
+    }
+    case 'deleted': {
+      return tasks.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error(`Unknown action: ${action.type}`);
+    }
+  }
+}
+```
+
+```js
+// AddTasks.js
+import { useState } from 'react';
+import { useTasksDispatch } from './TasksContext.js';
+let nextId = 3;
+
+export default function AddTask() {
+  const [text, setText] = useState('');
+  const dispatch = useTasksDispatch();
+  return (
+    <>
+      <input
+        placeholder='Add task'
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <button
+        onClick={() => {
+          setText('');
+          dispatch({
+            type: 'added',
+            id: nextId++,
+            text: text,
+          });
+        }}
+      >
+        Add
+      </button>
+    </>
+  );
+}
+```
+
+```js
+// TaskList.js
+import { useState } from 'react';
+import { useTasks, useTasksDispatch } from './TasksContext.js';
+
+export default function TaskList() {
+  const tasks = useTasks();
+  return (
+    <ul>
+      {tasks.map((task) => (
+        <li key={task.id}>
+          <Task task={task} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Task({ task }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const dispatch = useTasksDispatch();
+  let taskContent;
+  if (isEditing) {
+    taskContent = (
+      <>
+        <input
+          value={task.text}
+          onChange={(e) => {
+            dispatch({
+              type: 'changed',
+              task: {
+                ...task,
+                text: e.target.value,
+              },
+            });
+          }}
+        />
+        <button onClick={() => setIsEditing(false)}>Save</button>
+      </>
+    );
+  } else {
+    taskContent = (
+      <>
+        {task.text}
+        <button onClick={() => setIsEditing(true)}>Edit</button>
+      </>
+    );
+  }
+  return (
+    <label>
+      <input
+        type='checkbox'
+        checked={task.done}
+        onChange={(e) => {
+          dispatch({
+            type: 'changed',
+            task: {
+              ...task,
+              done: e.target.checked,
+            },
+          });
+        }}
+      />
+      {taskContent}
+      <button
+        onClick={() => {
+          dispatch({
+            type: 'deleted',
+            id: task.id,
+          });
+        }}
+      >
+        Delete
+      </button>
+    </label>
+  );
+}
+```
+
+- `TasksProvider`는 `tasks`를 다루는 방법을 알고 있는 화면의 일부라고 생각할 수 있습니다.
+- 또한 `useTasks`는 참조하는 방법으로, `useTasksDispatch`는 하위 트리에 있는 컴포넌트를 업데이트하는 방법으로 생각할 수 있습니다.
+  <br><br>
+
+> `useTasks`, `useTasksDispatch`와 같은 함수는 **사용자 정의 함수**로 불립니다.  
+> `use`로 시작하는 사용자 정의 함수도 `Hook`으로 취급됩니다.  
+> 따라서 내부에서 `useContext`와 같은 다른 `Hook`들을 사용할 수 있습니다.
+
+<br>
+
+- 앱이 커져감에 따라 여러 `reducer` - 컨텍스트 조합을 마주칠 것입니다.
+- 이는 데이터를 사용할 때 필요한 작업만 수행하며 상태를 끌어올리고 앱을 성장시킬 수 있습니다.
+
+## 요약
+
+- `reducer`와 컨텍스트를 조합하여 상위 컴포넌트의 상태를 읽고 수정할 수 있습니다.
+- 하위 컴포넌트에 상태와 `dispatch` 함수를 전달하는 방법
+  1. 2개 컨텍스트 생성
+  2. `reducer` 사용하는 컴포넌트로부터 컨텍스트 제공
+  3. 하위 컴포넌트에서 필요한 컨텍스트 사용
+- `reducer`, 컨텍스트를 1개 파일로 합쳐 컴포넌트 규모를 줄일 수 있습니다.
+  - 컨텍스트를 제공하는 `TasksProvider`와 같은 컴포넌트를 `export` 합니다.
+  - `useTasks`, `useTasksDispatch`와 같은 사용자 정의 `Hook`도 `export`할 수 있습니다.
+- 이와 같은 많은 `reducer` - 컨텍스트 조합을 사용할 수 있습니다.
