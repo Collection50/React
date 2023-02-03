@@ -1,0 +1,990 @@
+# You Might Not Need an Effect
+
+- `Effect`는 `React` 패러다임의 **escape hatch**입니다.
+- `Effect`는 `non-React` 위젯, 네트워크 브라우저 `DOM`과 같은 외부 시스템과 컴포넌트를 동기화할 수 있도록 합니다.
+- 외부 시스템을 사용하지 않는 경우, `Effect`를 사용할 필요는 없습니다.
+- 불필요한 `Effect`를 삭제하면 읽기 쉽고, 빠르고, 오류가 적은 코드를 작성할 수 있습니다.
+
+## 배우게 될 것
+
+- 컴포넌트에서 불필요한 `Effect`를 제거하는 이유와 방법
+- `Effect` 없이 고비용 계산을 캐시하는 방법
+- `Effect` 없이 컴포넌트 상태를 초기화하고 조정하는 방법
+- 이벤트 핸들러 간 로직을 공유하는 방법
+- 이벤트 핸들러 내부로 이동해야 하는 로직
+- 상위 컴포넌트에 변경 사항을 알리는 방법
+
+## 컴포넌트에서 불필요한 `Effect`를 제거하는 방법
+
+1. **렌더링을 위한 데이터를 변경하는데 `Effect`가 필요하지 않습니다.**
+   - 예를 들어 리스트를 화면에 표시하기 전 필터링한다고 해봅시다.
+   - 리스트가 변경될 때 `Effect`를 사용하여 상태 변수를 업데이트하고 싶을 겁니다.
+   - 하지만 이는 비효율적입니다.
+   - 컴포넌트의 상태를 업데이트 할 때, `React`는 컴포넌트 함수를 호출하여 화면에 표시할 내용을 추정합니다.
+   - `React`는 화면을 업데이트하면서 이러한 변경사항을 `DOM`에 **커밋**합니다.
+   - 이후 `React`는 `Effect`를 실행합니다.
+   - `Effect` **또한** 상태를 즉시 업데이트하는 경우 전체 프로세스가 처음부터 다시 시작됩니다.
+   - 불필요한 렌더링을 방지하려면 컴포넌트 최상단에 위치한 모든 데이터를 변환합니다.
+   - 그 코드는 `props`나 상태가 변경될 때마다 자동으로 재실행됩니다.
+2. **유저 이벤트를 다루기 위한 `Effect`는 필요하지 않습니다.**
+   - 예를 들어 `/api/buy` **POST** 요청을 보내고 싶고, 유저가 물건을 구매할 때 알림을 보여주고 싶습니다.
+   - `Buy` 버튼의 이벤트 핸들러를 클릭하면 정확히 무슨 일이 일어났는지 알 수 있습니다.
+   - `Effect`가 실행되기 전까지 유저가 수행한 작업을 알 수 없습니다.(버튼 클릭 등)
+   - 따라서 일반적으로 해당 이벤트 핸들러에서 유저 이벤트를 처리합니다.
+
+<br>
+
+- 외부 시스템과 동기화하려면 `Effect`가 필요합니다.
+- 예를 들어 `jQuery` 위젯을 `React` 상태와 동기화된 상태로 유지하는 `Effect`를 작성할 수 있습니다.
+- 또한 `Effect`를 활용하여 데이터를 페치할 수 있습니다.
+- 예를 들어 검색 결과와 현재 검색 결과 쿼리를 동기화할 수 있습니다.
+- 모던 프레임워크는 컴포넌트에 `Effect`를 사용하는 것보다 더 효율적인 빌트인 데이터 페치 메커니즘을 제공합니다.
+  <br><br>
+
+## props나 상태에 기반한 상태 업데이트하기
+
+- `firstName`, `lastName` 2개의 상태 변수를 가진 컴포넌트를 살펴봅시다.
+- 위 2개를 연결하여 `fullName`을 만들고 싶습니다.
+- 더하여 `fullName`은 `firstName`이나 `lastName`이 변경될 때마다 업데이트 되어야 합니다.
+- 처음으로 생각난 방법은 `fullName` 상태 변수를 추가하고, `Effect`를 활용해 업데이트하는 것입니다.
+
+```js
+function Form() {
+  const [firstName, setFirstName] = useState('Taylor');
+  const [lastName, setLastName] = useState('Swift');
+
+  // 🔴 지양하세요 : 중복된 상태, 불필요한 Effect
+  const [fullName, setFullName] = useState('');
+  useEffect(() => {
+    setFullName(`${firstName} ${lastName}`);
+  }, [firstName, lastName]);
+  // ...
+}
+```
+
+<br>
+
+- 필요 이상으로 복잡합니다.
+- 너무 비효율적이기도 하죠.
+- 이전의 `fullName`으로 전체 렌더링을 수행한 다음, 업데이트된 값으로 즉시 다시 렌더링합니다.
+- 상태 변수와 `Effect`를 제거해보겠습니다.
+
+```js
+function Form() {
+  const [firstName, setFirstName] = useState('Taylor');
+  const [lastName, setLastName] = useState('Swift');
+
+  // ✅ 권장합니다 : 렌더링하는 동안 계산됩니다.
+  const fullName = `${firstName} ${lastName}`;
+  // ...
+}
+```
+
+<br>
+
+- **이미 존재하는 `props`이나 상태와 계산될 수 있는 무언가는 상태에 저장하면 안 됩니다.**
+- **렌더링 도중 계산되는 방식을 사용해야 합니다.**
+- 더 빠른, 간단한, 에러가 적은 코드를 작성할 수 있습니다.
+
+## 고비용 계산들을 캐싱하기
+
+- 아래 컴포넌트는 `todos` `prop`과 `filter` `prop`을 활용해 `visibleTodos`를 계산합니다.
+- 아마 값의 저장을 위해 상태를 사용하고 싶고 `Effect`를 사용해 업데이트하고 싶을 겁니다.
+
+```js
+function TodoList({ todos, filter }) {
+  const [newTodo, setNewTodo] = useState('');
+
+  // 🔴 지양하세요 : 중복 상태, 불필요한 Effect
+  const [visibleTodos, setVisibleTodos] = useState([]);
+  useEffect(() => {
+    setVisibleTodos(getFilteredTodos(todos, filter));
+  }, [todos, filter]);
+  // ...
+}
+```
+
+<br>
+
+- 위 코드는 불필요하고 비효율적입니다.
+- 먼저 상태와 `Effect`를 제거해볼까요?
+
+```js
+function TodoList({ todos, filter }) {
+  const [newTodo, setNewTodo] = useState('');
+
+  // ✅ getFilteredTodos가 느리지 않다면 사용해도 좋습니다.
+  const visibleTodos = getFilteredTodos(todos, filter);
+}
+```
+
+<br>
+
+- 대부분 위 코드는 괜찮습니다.
+- 하지만 `getFilteredTodos`가 느리거나 `todos`가 너무 많을 수도 있습니다.
+- 이 경우 `newTodo` 같이 상관 없는 상태 변수가 변경된 경우 `getFilteredTodos`를 너무 많이 실행해야 합니다.
+  <br><br>
+- `useMemo` `Hook`으로 래핑하여 고비용 계산을 캐시(**메모이제이션**)할 수 있습니다.
+
+```js
+import { useMemo, useState } from 'react';
+
+function TodoList({ todos, filter }) {
+  const [newTodo, setNewTodo] = useState('');
+  const visibleTodos = useMemo(() => {
+    // ✅ todos나 filter가 변경되기 전까지 재실행되지 않습니다.
+    return getFilteredTodos(todos, filter);
+  }, [todos, filter]);
+  // ...
+}
+```
+
+<br>
+
+- 화살표 함수를 사용하여 1줄로 작성해보죠.
+
+```js
+import { useMemo, useState } from 'react';
+
+function TodoList({ todos, filter }) {
+  const [newTodo, setNewTodo] = useState('');
+  // ✅ todos나 filter가 변경되기 전까지 재실행되지 않습니다.
+  const visibleTodos = useMemo(() => getFilteredTodos(todos, filter), [todos, filter]);
+  // ...
+}
+```
+
+<br>
+
+- 이는 `React`에게 `todos`나 `filter`이 변경되기 전까지 내부 함수를 재실행하지 않도록 요청합니다.
+- `React`는 첫 렌더링 동안 `getFilteredTodos`의 반환값을 기억할 겁니다.
+- 다음 렌더링하는 동안 `React`는 `todos`나 `filter`가 달라졌는지 체크합니다.
+- 이전과 같은 상태라면 `useMemo`는 저장되어있던 마지막 값을 반환합니다.
+- 만약 달라졌다면 `React`는 래핑된 함수를 다시 호출하고 결과를 저장합니다.
+  <br><br>
+- `useMemo`로 호출했던 함수는 렌더링 도중 실행되고 순수 함수처럼 동작합니다.
+
+## Deep Dive - 고비용 동작을 어떻게 확인할 수 있나요?
+
+- 일반적으로 수천 개의 객체를 만들거나 순회하지 않는 이상 아마 고비용 동작은 별로 없을 겁니다.
+- 만약 코드의 정확도를 증가시키고 싶다면, 코드의 실행 시간을 측정하고 기록하기 위해 `console`를 추가하면 됩니다.
+
+```js
+console.time('filter array');
+const visibleTodos = getFilteredTodos(todos, filter);
+console.timeEnd('filter array');
+```
+
+<br>
+
+- 실행 시간을 측정해봅시다.
+- `filter array: 0.15ms`와 같은 로그를 확인할 수 있습니다.
+- 기록된 전체 시간이 꽤 긴 경우(`1ms` 이상), 해당 동작을 메모이제이션하는 것이 효율적입니다.
+- 이후 `useMemo`를 활용하였을 때 총 실행 시간의 감소 여부를 확인합니다.
+
+```js
+console.time('filter array');
+const visibleTodos = useMemo(() => {
+  // todos나 filter가 변경되지 않았다면 스킵
+  return getFilteredTodos(todos, filter);
+}, [todos, filter]);
+console.timeEnd('filter array');
+```
+
+- `useMemo`는 **첫** 렌더링에서 빠르지 않습니다.
+- 이는 불필요한 업데이트를 건너뛸 수 있도록 하기 때문입니다.
+  <br><br>
+- 개발자의 컴퓨터가 유저의 컴퓨터보다 빠를 수 있으므로, 인위적인 속도 저하를 통해 성능을 테스트하는 것이 바람직합니다.
+- 예를 들어 크롬은 CPU 쓰로틀링 옵션을 제공합니다.
+  <br><br>
+- 또한 개발 환경에서 퍼포먼스를 측정하는 것이 항상 정확한 결과를 도출하는 것은 아닙니다. (`Strict Mode`가 켜진 경우 각 컴포넌트는 2번 렌더링됩니다.)
+- 더 정확한 타이밍을 얻으려면 운영을 위해 앱을 구축하고 유저와 같은 컴퓨터에서 테스트하는 것이 좋습니다.
+
+## prop이 변경될 때 모든 상태 초기화하기
+
+- 아래 `ProfilePage` 컴포넌트는 `userId` `prop`으로 받습니다.
+- 페이지는 `comment` 입력 값을 상태 변수에 저장합니다.
+- 한 프로필에서 다른 프로필로 이동할 때 `comment` 상태가 초기화되지 않는 문제가 발생했습니다.
+- 결과적으로 잘못된 사용자 프로필에 댓글을 작성하는 실수가 발생합니다.
+- 이를 수정하기 위해 `userId`가 변경될 때마다 `comment` 상태 변수를 초기화 해야 합니다.
+
+```js
+export default function ProfilePage({ userId }) {
+  const [comment, setComment] = useState('');
+
+  // 🔴 지양하세요: 내부 prop 변화에 따라 상태 변경
+  useEffect(() => {
+    setComment('');
+  }, [userId]);
+  // ...
+}
+```
+
+<br>
+
+- 이는 `ProfilePage`와 `children`이 상태 변수와 함께 첫번째로 렌더링된 이후에 다시 렌더링되기 때문에 비효율적입니다.
+- 더하여 `ProfilePage` 안에 상태가 존재하는 **모든** 컴포넌트에서 이 작업을 수행해야 하므로 복잡합니다.
+- 예를 들어 댓글 UI가 중첩되었다면, 중첩된 댓글 상태 또한 초기화해야 합니다.
+  <br><br>
+- 대신 명시적으로 `key`를 전달하여 각 유저의 프로필이 개념적으로 다르다는 것을 `React`에게 알릴 수 있습니다.
+- 컴포넌트를 2개로 나누고 상위 컴포넌트의 `key` 어트리뷰트를 하위 어트리뷰트에 전달합니다.
+
+```js
+export default function ProfilePage({ userId }) {
+  return <Profile userId={userId} key={userId} />;
+}
+
+function Profile({ userID }) {
+  // ✅ 이 상태와 하위의 다른 상태는 키 변경 시 자동으로 재설정됩니다.
+  const [comment, setComment] = useState('');
+}
+```
+
+<br>
+
+- 일반적으로 `React`는 동일 위치에 동일 컴포넌트가 렌더링되는 경우 상태를 보존합니다.
+- `Profile` 컴포넌트에 `key`로 `userId`를 전달하여, 다른 `userId`를 사용하는 컴포넌트는 별개의 컴포넌트이며, 상태를 공유하면 안 된다고 알립니다.
+- `key`가 변경할 때마다 `React`는 `DOM`을 재생성하고 `Profile` 컴포넌트의 상태와 모든 `children`을 초기화합니다.
+- 결과적으로 다른 프로필로 이동하는 경우 `comment` 필드는 자동으로 초기화됩니다.
+  <br><br>
+- 위 예시에서는 외부에 존재하는 `ProfilePage` 컴포넌트만 다른 파일에 `export`되고 보여질 수 있습니다.
+- `ProfilePage`를 렌더링하는 컴포넌트는 `key`를 전달할 필요가 없습니다.
+- 컴포넌트는 `userId`를 `prop`으로 전달하기 때문입니다.
+- `ProfilePage`가 `userId`를 `key`로 활용하여 `Profile` 컴포넌트에 전달한다는 사실은 구현 세부 정보입니다.
+
+## prop이 변경될 때 일부 상태 조정하기
+
+- 경우에 따라 `prop` 변경 시 상태의 일부를 재설정하거나 조정할 수 있지만 일부만 조정하는 것은 아닙니다.
+  <br><br>
+- 아래 `List` 컴포넌트는 `prop`으로 `items`를 전달받고 `selection` 상태 변수의 선택된 `item`을 유지합니다.
+- `items` `prop`이 상이한 배열을 전달받을 때마다 `selection`을 `null`로 변경하고 싶을 겁니다.
+
+```js
+function List({ items }) {
+  const [isReverse, setIsReverse] = useState(false);
+  const [selection, setSelection] = useState(null);
+
+  // 🔴 지양하세요 : Effect에서 prop이 변경될 때마다 상태 조정하기
+  useEffect(() => {
+    setSelection(null);
+  }, [items]);
+}
+```
+
+<br>
+
+- 너무 이상적입니다.
+- `items`가 변경될 때마다 `List`와 하위 컴포넌트는 오래된 `selection` 값을 처음으로 렌더링합니다.
+- 이후 `React`는 `DOM`을 업데이트하고 `Effect`를 실행합니다.
+- 마지막으로 `setSelection(null)`은 전체 프로세스를 재시작하면서 또 다른 `List`와 하위 컴포넌트를 리렌더링할 것입니다.
+  <br><br>
+
+- `Effect`를 삭제해봅시다.
+- 대신 렌더링 동안 상태를 직접적으로 조정하겠습니다.
+
+```js
+function List({ items }) {
+  const [isReverse, setIsReverse] = useState(false);
+  const [selection, setSelection] = useState(null);
+
+  // 렌더링 도중 상태 조정하기
+  const [prevItems, setPrevItems] = useState(items);
+  if (items !== prevItems) {
+    setPrevItems(items);
+    setSelection(null);
+  }
+  // ...
+}
+```
+
+<br>
+
+- 이전 렌더링의 데이터를 저장하는 것은 이해하기 어려울 수 있으나, `Effect`에서 동일한 상태를 업데이트하는 것보다 낫습니다.
+- 위 예제의 `setSelection`은 렌더링 동안 직접적으로 호출됩니다.
+- `React`는 `return`문이 실행되고난 직후 `List` 컴포넌트를 리렌더링합니다.
+- 이 부분에서 `React`는 `List`의 `chlidren`이나 업데이트된 `DOM`을 아직 렌더링하지 않기에, `List`의 `chlidren`은 `selection` 값을 렌더링하는 것을 스킵합니다.
+  <br><br>
+- 렌더링 동안 컴포넌트를 업데이트할 때, `React`는 반환된 `JSX`를 버리고 즉시 렌더링을 재시도합니다.
+- 매우 느린 계단식 재시도를 방지하기 위해, `React`를 사용하면 렌더링 중에 **동일한** 컴포넌트의 상태만 업데이트할 수 있습니다.
+- 렌더링 동안 또 다른 컴포넌트의 상태를 업데이트하는 경우 에러가 발생할 것입니다.
+- `items !== prevItems`와 같은 조건은 무한 루프를 방지하기 위해 필요합니다.
+- 이렇게 상태를 조정할 수 있지만, **컴포넌트를 예측할 수 있도록** 이벤트 핸들러 or `Effect`에 부수 효과가 남아있어야 합니다.
+  <br><br>
+- 이러한 패턴은 `Effect`에서 더 효율적이지만, 대부분의 컴포넌트는에도 이 패턴이 필요하지 않을 겁니다.
+- 어찌됐건 `props` or 상태를 기반으로 한 상태 조정은 데이터 흐름을 이해하고 디버그하기 어렵게 합니다.
+- 렌더링하는 동안 **`key`를 사용하여 모든 상태를 재설정할 수 있는지**, **모든 상태를 계산할 수 있는지 항상 확인해야 합니다.**
+- 예를 들어 선택한 `item`을 저장하는 대신 선택한 `item ID`를 저장할 수 있습니다.
+
+```js
+function List({ items }) {
+  const [isReverse, setIsReverse] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
+
+  // ✅ 최적의 방법: 렌더링동안 모든 작업을 수행합니다.
+  const selection = items.find(item => item.id === selectedId) ?? null;
+  // ...
+}
+```
+
+<br>
+
+- 이젠 상태를 **조정**할 필요가 전혀 없습니다.
+- 선택한 `ID`를 가진 항목이 리스트에 존재하면 선택된 상태로 유지됩니다.
+- 존재하지 않는다면 일치하는 항목을 찾을 수 없으므로 렌더링 도중 계산된 `selection`은 `null` 값이 됩니다.
+- 이 동작은 조금 다르지만 `items`에 대한 대부분의 변경 사항이 `selection`을 보존하기 때문에 더 좋습니다.
+- 하지만 `selectedId`를 가진 항목이 존재하지 않을 수 있으므로 모든 논리에서 `selection`을 사용해야 합니다.
+
+## 이벤트 핸들러 간 로직 공유
+
+- 제품을 구매할 수 있는 2개의 버튼이 있는 제품 페이지가 있다고 해봅시다.
+- 유저가 제품을 카트에 넣을 떄마다 알람을 표시하려고 합니다.
+- `shoNotification` 호출을 2개 버튼 클릭 핸들러에 모두 추가하면 반복 작업처럼 여겨지므로 이 로직을 `Effect`에 추가하고 싶다고 느낄 수 있습니다.
+
+```js
+function ProductPage({ product, addTocart }) {
+  // 🔴 지양하세요: 내부의 특정 이벤트에 대한 로직
+  useEffect(() => {
+    if (product.isInCart) {
+      showNotification(`Added ${product.name} to the shopping cart!`);
+    }
+  }, [product]);
+
+  function handleBuyClick() {
+    addToCart(product);
+  }
+
+  function handleCheckoutClick() {
+    addToCart(product);
+    navigateTo('/checkout');
+  }
+  // ...
+}
+```
+
+<br>
+
+- 이 `Effect`는 불필요합니다.
+- 이는 또한 버그를 일으킬 가능성이 크다.
+- 예를 들어 앱이 페이지를 다시 로드하는 동안 쇼핑 카트를 **기억**한다고 가정해 보겠습니다.
+- 카트에 제품을 1번 추가하고 페이지를 새로 고치면 알림이 다시 나타납니다.
+- 이 알림은 해당 제품의 페이지를 새로고침할 때마다 계속 나타납니다.
+- 이는 `product.isInCart`가 이미 페이지 로드에서 `true`이므로 위의 `Effect`는 `showNotification`를 호출합니다.
+  <br><br>
+- **일부 코드의 위치를 `Effect`인지 이벤트 핸들러인지 고민되는 경우 코드가 실행되어야 하는 이유를 스스로에게 물어봐야 합니다.**
+- **컴포넌트가 유저에게 보여지기 때문에 실행해야 하는 코드에만 `Effect`를 사용합니다.**
+- 이 예제는 페이지가 표시되어서가 아니라, 유저가 버튼을 **눌렀기에** 알림이 표시되어야 합니다!
+- `Effect`를 삭제하고, 두 이벤트 핸들러에서 호출하는 함수에 공유된 로직을 넣습니다.
+
+```js
+function ProductPage({ product, addToCart }) {
+  // ✅ Good: 특정 이벤트 로직은 이벤트 핸들러에서 호출됩니다.
+  function buyProduct() {
+    addToCart(product);
+    showNotification(`Added ${product.name} to the shopping cart!`);
+  }
+
+  function handleBuyClick() {
+    buyProduct();
+  }
+
+  function handleCheckoutClick() {
+    buyProduct();
+    navigateTo('/checkout');
+  }
+  // ...
+}
+```
+
+<br>
+
+- 이는 불필요한 효과를 제거하고 버그를 수정합니다.
+
+## POST 요청 전달하기
+
+- `Form` 컴포넌트는 2종류의 `POST` 요청을 전송합니다.
+- 마운트될 때 분석 이벤트를 전송합니다.
+- `form`을 채우고 `Submit` 버튼을 클릭하면 `/api/register` 엔드 포인트에 `POST` 요청을 전송합니다.
+
+```js
+function Form() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  // ✅ 굿!: 컴포넌트가 화면에 보여지기 때문에 아래 로직은 실행되어야 합니다.
+  useEffect(() => {
+    poas('/analytics/event', { eventName: 'visit_form' });
+  }, []);
+
+  //  Avoid: Event-specific logic inside an Effect
+  // 🔴 지양하세요: Effect 안의 특정 이벤트 로직
+  const [jsonToSubmit, setJsonToSubmit] = useState(null);
+  useEffect(() => {
+    if (jsonToSubmit !== null) {
+      post('/api/register', jsonToSubmit);
+    }
+  }, [jsonToSubmit]);
+
+  function handleSubmit(e) {
+    e.prventDefault();
+    setJsonToSubmit({ firstName, lastName });
+  }
+  // ...
+}
+```
+
+<br>
+
+- 앞 예시와 같은 기준을 적용해봅시다.
+- 분석 `POST` 요청은 `Effect`에서 유지되어야 합니다.
+- 분석 이벤트를 보내는 **이유는** `form`이 화면에 보여지기 때문입니다.
+  <br><br>
+- 하지만 `/api/register` `POST` 요청은 `form`이 화면에 **보여진다고** 해서 발생하는 것이 아닙니다.
+- 버튼을 누르는 것처럼 특정 상황에만 요청을 전송할 수 있습니다.
+- 이러한 특정한 인터랙션에 의해서만 발생합니다.
+- 2번째 `Effect`를 삭제하고 `POST` 요청을 이벤트 핸들러 안으로 옮겨보겠습니다.
+
+```js
+function Form() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  // ✅ 굿!: 컴포넌트가 화면에 보여지기 때문에 아래 로직은 실행되어야 합니다.
+  useEffect(() => {
+    post('/analytics/event', { eventName: 'visit_form' });
+  }, []);
+
+  // ✅ 굿!: 특정 이벤트 로직은 이벤트 핸들러 내부에 존재해야 합니다.
+  function handleSubmit(e) {
+    e.preventDefault();
+    post('/api/register', { firstName, lastName });
+  }
+}
+```
+
+<br>
+
+- 일부 로직의 위치가 이벤트 핸들러든 `Effect`든 **어떤 종류의 로직**이 유저의 관점에서 보여지는가가 고려해보아야 할 점입니다.
+- 로직이 특정 인터랙션에 의해 발생된다면 이벤트 핸들러에서 사용하는 것이 좋습니다.
+- 유저가 화면에 있는 컴포넌트를 보는 것으로 인해 특정 로직이 발생한다면 `Effect`에서 사용하는 것이 좋습니다.
+
+## 연산 체인
+
+- 다른 상태를 기준으로 상태를 조정하는 `Effect`를 연달아 사용하고 싶을 수 있습니다.
+
+```js
+function Game() {
+  const [card, setCard] = useState(null);
+  const [goldCardCount, setGoldCardCount] = useState(0);
+  const [round, setRound] = useState(1);
+  const [isGameOver, setIsGameOver] = useState(false);
+
+  // 🔴지양하세요: 각 변수를 트리거하기 위해 상태를 조정하는 Effect 체인
+  useEffect(() => {
+    if (card && card.gold) {
+      setGoldCardCount(c => c + 1);
+    }
+  }, [card]);
+
+  useEffect(() => {
+    if (goldCardCount > 3) {
+      setRound(r => r + 1);
+      setGoldCardCount(0);
+    }
+  }, [goldCardCount]);
+
+  useEffect(() => {
+    if (round > 5) {
+      setIsGameOver(true);
+    }
+  }, [round]);
+
+  useEffect(() => {
+    alert('Good Game!');
+  }, [isGameOver]);
+
+  function handlePlaceCard(nextCard) {
+    if (isGameOver) {
+      throw Error('Game already ended');
+    }
+    setCard(nextCard);
+  }
+}
+
+// ...
+```
+
+<br>
+
+- 위 코드엔 2개의 문제가 존재합니다.
+  <br><br>
+- 첫번째로 굉장히 비효율적입니다.
+- 컴포넌트와 `children`은 체인의 각 `set` 함수 호출 사이에서 리렌더링 해야 합니다.
+- 위 예제에서 최악의 경우 (`setCard` -> 렌더링 -> `setGoldCardCount` -> 렌더링 `setRound` -> 렌더링 -> `setIsGameOver` -> 렌더링)과 같은 불필요한 리렌더링이 3번 발생합니다.
+  <br><br>
+- 느리지 않다고 해도 코드가 추가되면서 작성한 **체인**이 새로운 요구사항에 맞지 않는 경우 에러가 발생합니다.
+- 게임 이동의 히스토리를 단계적으로 살펴볼 수 있는 기능을 추가한다고 가정해봅시다.
+- 각 상태 변수를 과거 값으로 업데이트하여 이 작업을 수행할 수 있습니다.
+- 하지만 `card` 상태를 과거 값으로 변경하는 것은 `Effect` 체인을 다시 트리거하고 표시되는 데이터가 변경됩니다.
+- 이러한 코드는 오류에 굉장히 취약합니다.
+  <br><br>
+- 이 경우 렌더링 중에 수행할 수 있는 작업을 산정하고 이벤트 핸들러에서 상태를 조정하는 것이 좋습니다.
+
+```js
+function Game() {
+  const [card, setCard] = useState(null);
+  const [goldCardCount, setGoldCardCount] = useState(0);
+  const [round, setRound] = useState(1);
+
+  // ✅ 렌더링 도중 할 수 있는 계산입니다.
+  const isGameOver = round > 5;
+
+  function handlePalceCard(nextCard) {
+    if (isGameOver) {
+      throw Error('Game already ended');
+    }
+  }
+
+  // ✅ 이벤트 핸들러의 다음 상태를 모두 계산합니다.
+  setCard(nextCard);
+  if (nextcard.gold && goldCardCount <= 3) {
+    setGoldCardCount(goldCardCount + 1);
+  } else if (nextCard.gold && round === 5) {
+    alert('Good Game!');
+  } else if (nextCard.gold) {
+    setGoldCardCount(0);
+    setRound(round + 1);
+  }
+}
+// ...
+```
+
+<br>
+
+- 훨씬 효율적입니다.
+- 또한 게임 히스토리를 확인하는 방법을 구현하면 이제 다른 모든 값을 조정한느 `Effect` 체인을 트리거하지 않고 각 상태 변수를 과거의 이동으로 설정할 수 있습니다.
+- 여러 이벤트 핸들러 간 로직을 재사용해야 하는 경우 **함수를 추출하여** 해당 핸들러에서 호출하면 됩니다.
+  <br><br>
+- 이벤트 핸들러 내부에선 상태는 스냅샷처럼 동작합니다.
+- 예를 들어 `setRound(round + 1)`을 호출한 이후에도 `round` 변수는 유저가 버튼을 클릭했던 때의 값을 반영합니다.
+- 계산을 위해 다음 값이 필요하다면 `const nextRound = round + 1`과 같이 수동적으로 변수를 선언해야 합니다.
+  <br><br>
+- 일부 경우 이벤트 핸들러에서 직접적으로 다음 상태를 계산할 수 **없습니다.**
+- 예를 들어 이전 드롭다운의 선택 값에 따라 다음 드롭다운의 옵션이 달라지는 `form`을 생각해봅시다.
+- 이후 네트워크와 동기화하기 때문에 데이터를 페치하는 `Effect` 체인은 이 경우에 적합합니다.
+
+## 어플리케이션 초기화
+
+- 일부 로직은 앱이 로드될 때 1번만 실행되어야 합니다.
+- 이 로직은 최상단 컴포넌트의 `Effect`에 위치할 수 있습니다.
+
+```js
+function App() {
+  // 🔴 지양하세요: 1번만 실행되어야 하는 로직을 가진 Effect
+  useEffect(() => {
+    loadDataFromLocalStorage();
+    checkAuthToken();
+  }, []);
+  // ...
+}
+```
+
+<br>
+
+- 하지만 개발 환경에서 2번 실행되는 것을 단번에 확인할 수 있을 겁니다.
+- 이로 인해 문제가 발생할 수 있습니다.
+- 예를 들어 함수가 2번 호출되도록 설계되지 않았기 때문에 인증 토큰이 무효화될 수 있습니다.
+- 일반적으로 컴포넌트는 탄력적으로 리마운트되어야 합ㄴ디ㅏ.
+- 이는 최상단 컴포넌트인 `App`에도 적용됩니다.
+- 실제 운영 환경에서는 리마운트되지 않을 수 있지만, 모든 컴포넌트에서 동일한 규칙을 준수하면 코드를 더 쉽게 이동하고 재사용할 수 있습니다.
+- 일부 로직이 앱의 로드마다 1번씩 실행해야 하는 경우, 최상위 변수를 추가하여 실행 여부를 저장하여 재실행을 방지할 수 있습니다.
+
+```js
+let didInit = false;
+
+function App() {
+  useEffect(() => {
+    if (!didInit) {
+      didInit = true;
+      //✅ 앱이 로드될 때마다 1번만 실행
+      loadDataFromLocalStorage();
+      checkAuthToken();
+    }
+  }, []);
+  // ...
+}
+```
+
+<br>
+
+- 모듈 초기화 중 앱이 렌더링되기 전에 실행할 수도 있습니다.
+
+```js
+// 브라우저에서 실행되는지 여부 확인
+if (typeof window !== 'undefiend') {
+  //✅ 앱이 로드될 때마다 1번만 실행
+  checkAuthToken();
+  loadDataFromLocalStorage();
+}
+
+function App() {
+  // ...
+}
+```
+
+<br>
+
+- 컴포넌트를 로드할 때 렌더링되지 않더라도 최상단의 코드는 1번 실행됩니다.
+- 임의 구성 요소를 `import`할 때 속도가 느려지거나 예기치 않은 동작을 예방하려면 이 패턴을 남용하면 안 됩니다.
+- `App.js`와 같은 루트 컴포넌트 모듈이나 응용 프로그램의 시작점 모듈에 대하여 초기화 로직을 유지해야 합니다.
+
+## 상위 컴포넌트에 변경 사항을 알리기
+
+- 불리언 값을 가지는 `isOn` 상태의 `Toggle` 컴포넌트를 작성해봅시다.
+- 클릭하거나 드래그 등의 방법으로 토글할 수 있습니다.
+- `Toggle`의 내부 상태가 변경될 때마다 상위 컴포넌트에게 알려야 하므로 `onChange` 이벤트를 노출하고 `Effect`에서 호출합니다.
+
+```js
+function Toggle({ onChange }) {
+  const [isOn, setIsOn] = useState(false);
+
+  // 🔴 지양하세요: onChange 핸들러는 너무 늦게 실행됩니다.
+  useEffect(() => {
+    onChange(isOn);
+  }, [isOn, onChange]);
+
+  function handleClick() {
+    setIsOn(!isOn);
+  }
+
+  function handleDragEnd(e) {
+    if (isCloserToRightEdge(e)) {
+      setIsOn(true);
+    } else {
+      setIsOn(false);
+    }
+  }
+  // ...
+}
+```
+
+- 앞 예제와 같이 이상적인 방법이 아닙니다.
+- `Toggle`은 첫번째로 상태를 업데이트하고 `React`는 화면을 업데이트합니다.
+- 이후 상위 컴포넌트로부터 전달받은 `onChange`를 호출하는 `Effect`가 실행됩니다.
+- 이 시점에서 상위 컴포넌트는 다른 렌더링을 전ㄷ라하며 상태를 업데이트할 것입니다.
+- 모든 것을 한 번에 처리하는 것이 더 효율적입니다.
+  <br><br>
+- `Effect`를 삭제하고 동일한 이벤트 핸들러 내에서 두 컴포넌트의 상태를 업데이트합니다.
+
+```js
+function Toggle({ onChange }) {
+  const [isOn, setIsOn] = useState(false);
+
+  function updateToggle(nextIsOn) {
+    // ✅ 굿!: 이벤트가 발생하는 동안 모든 업데이트를 수행합니다.
+    setIsOn(nextIsOn);
+    onChange(nextIsOn);
+  }
+
+  function handleClick() {
+    updateToggle(!isOn);
+  }
+
+  function handleDragEnd(e) {
+    if (isCloserToRightEdge(e)) {
+      updateToggle(true);
+    } else {
+      updateToggle(false);
+    }
+  }
+
+  // ...
+}
+```
+
+<br>
+
+- 이렇게 하면 `Toggle` 컴포넌트와 상위 컴포넌트는 이벤트가 동작하는 동안 상태를 업데이트합니다.
+- `React`는 서로 다른 컴포넌트의 **업데이트를 일괄 처리**하므로 결과적으로 1개의 렌더링만 전달합니다.
+  <br><br>
+- 상태를 모두 제거하고 상위 컴포넌트로부터 `isOn`을 전달받을 수도 있습니다.
+
+```js
+// ✅ 굿!: 이 컴포넌트는 부모에 의해 완전히 제어됩니다.
+function Toggle({ isOn, onChange }) {
+  function handleClick() {
+    onChange(!isOn);
+  }
+
+  function handleDragEnd(e) {
+    if (isCloserToRightEdge(e)) {
+      onChange(true);
+    } else {
+      onChange(false);
+    }
+  }
+
+  // ...
+}
+```
+
+<br>
+
+- **상태를 끌어올리는 것**은 상위 컴포넌트가 자신의 상태를 토글하여 `Toggle`을 완전히 제어할 수 있습니다.
+- 이는 상위 컴포넌트가 더 많은 로직을 포함해야 하지만 거시적으로는 오류 발생 가능성을 낮춥니다.
+- 2개의 다른 상태 변수를 동기화하려고 할 때마다 상태를 끌어올려야 한다는 의미입니다.
+
+## 상위 컴포넌트에 데이터 전달하기
+
+- `Child` 컴포넌트는 일부 데이터를 페치한 다음 `Effect`를 통해 `Parent` 컴포넌트에 데이터를 전달합니다.
+
+```js
+function Parent() {
+  const [data, setData] = useState(null);
+  // ...
+  return <Child onFetched={setData} />;
+}
+
+function Child({ onFetched }) {
+  const data = useSomeAPI();
+  // 🔴 지양하세요: Effect를 통해 상위 컴포넌트에 데이터 전달
+  useEffect(() => {
+    if (data) {
+      onFetched(data);
+    }
+  }, [onFetched, data]);
+  // ...
+}
+```
+
+<br>
+
+- `React`에서 데이터 흐름의 방향은 위에서 아래입니다.
+- 화면에 잘못된 것이 표시되면 어떤 컴포넌트가 잘못된 상태를 전달하는지, 잘못된 상태가 무엇인지 찾을 때까지 컴포넌트 체인을 통해 데이터의 출처를 추적할 수 있습니다.
+- 하위 컴포넌트가 `Effect`에서 상위 컴포넌트의 상태를 업데이트하면 데이터 흐름을 추적하기가 굉장히 어렵습니다.
+- 상위 컴포넌트와 하위 컴포넌트 모두 동일한 데이터가 필요하기 때문에 상위 컴포넌트가 데이터를 페치하고, 이를 하위 컴포넌트에 **전달**해야 합니다.
+
+```js
+function Parent() {
+  const data = useSomeAPI();
+  // ...
+  // ✅ 굿!: 하위 컴포넌트에 데이터 전달
+  return <Child data={data} />;
+}
+
+function Child({ data }) {
+  // ...
+}
+```
+
+<br>
+
+- 훨씬 간단하고 데이터의 흐름이 예측 가능해집니다.
+- 즉 데이터 흐름의 방향이 위에서 아래로 내려옵니다.
+
+## 외부 저장소 구독
+
+- 때로 컴포넌트가 `React`의 상태가 아닌 다른 데이터를 구독해야 할 수도 있습니다.
+- 이러한 데이터는 서드파티 라이브러리 또는 빌트인 브라우저 API에서 가져올 수 있습니다.
+- 이 데이터는 `React`가 알지 못하는 사이에 변경될 수 있으므로 컴포넌트를 수동으로 구독해야 합니다.
+- 이는 `Effect`를 사용하는 경우가 많습니다.
+
+```js
+function useOnlineStatus() {
+  // 이상적이지 않습니다: Effect를 통해 수동으로 저장소 구독
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    function updateState() {
+      setIsOnline(navigator.online);
+    }
+
+    updateState();
+
+    window.addEventListener('online', updateState);
+    window.addEventListener('offline', updateState);
+    return () => {
+      window.removeEventListener('online', updateState);
+      window.removeEventListener('offline', updateState);
+    };
+  }, []);
+  return isOnline;
+}
+
+function ChatIndicator() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+```
+
+<br>
+
+- 컴포넌트는 외부 데이터 저장소인 `navigator.onLine` API를 구독합니다.
+- 이 `API`는 서버에 존재하지 않으므로 초기 `HTML`을 생성할 수 없습니다.
+- 따라서 처음에는 `isOnline` 상태가 `true`로 설정됩니다.
+- 브라우저에서 해당 데이터 저장소의 값이 변경될 대마다 컴포넌트는 해당 상태를 업데이트합니다.
+  <br><br>
+- 이를 위해 `Effect`를 사용하는 것이 일반적이지만, 외부 저장소를 구독하기 위한 특수 목적의 `Hook`이 존재합니다.
+- `Effect`를 `useSyncExternalStore`로 변경해봅시다.
+
+```js
+function subscribe(callback) {
+  window.addEventListener('online', callback);
+  window.addEventListener('offline', callback);
+  return () => {
+    window.removeEventListener('online', callback);
+    window.removeEventListener('offline', callback);
+  };
+}
+
+function useOnlineStatus() {
+  // ✅ 굿!: 빌트인 Hook`을 통해 외부 저장소 구독하기
+  return useSyncExternalStore(
+    subscribe, // 동일한 함수를 전달하는 한 다시 구독하지 않습니다.
+    () => navigator.online, // 클라이언트에서 값을 가져오는 방법
+    () => true // 서버에서 값을 가져오는 방법
+  );
+}
+
+function ChatIndicator() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+```
+
+<br>
+
+- 이러한 방법은 `Effect`를 활용하여 변경 가능한 데이터를 수동으로 `React` 상태에 동기화하는 것보다 에러 가능성이 적습니다.
+- 일반적으로 `useOnlineStatus`와 같은 사용자 정의 `Hook`를 사용하여 개별 컴포넌트에서 이 코드를 반복할 필요가 없습니다.
+
+## 데이터 페치
+
+- 많은 앱은 데이터를 페치하기 위해 `Effect`를 사용합니다.
+- 데이터 페치를 위하여 아래와 같이 `Effect`를 작성하는 것은 일반적입니다.
+
+```js
+function Serachresults({ query }) {
+  const [results, setReults] = useState([]);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    // 🔴 지양하세요: 초기화 로직 없이 페치
+    fetchResults(query, page).then(json => {
+      setResults(json);
+    });
+  }, [query, page]);
+
+  function handleNextPageClick() {
+    setPage(page + 1);
+  }
+  // ...
+}
+```
+
+<br>
+
+- 위 페치 과정을 이벤트 핸들러로 이동할 필요는 없습니다.
+  <br><br>
+- 이벤트 핸들러에 로직을 넣어야 했던 이전 예시와 모순되는 것처럼 보일 겁니다.
+- 하지만 페치를 하는 이유는 **타이핑 이벤트**가 아닙니다.
+- 검색 입력은 보통 `URL`에서 미리 입력되며, 유저는 입력을 사용하지 않고 앞뒤로 탐색할 수 있습니다.
+- 페이지와 쿼리가 어디서 왔는지는 중요하지 않습니다.
+- 컴포넌트가 화면에 보여지는 동안, 현재 `page`와 `query`에 따른 결과를 네트워크와 동기화된 상태로 유지할 겁니다.
+- 이것이 `Effect`인 이유입니다.
+  <br><br>
+- 하지만 위의 코든느 버그를 가지고 있습니다.
+- `'hello'`를 빨리 입력한다고 가정합시다.
+- 그러면 `query`는 `'h'`, `'he'`, `'hel'`, `'hell'`, `'hello'` 순으로 변화할 겁니다.
+- 이는 개별적인 페치를 시작하지만 응답 순서는 보장되지 않습니다.
+- 예를 들어 `'hell'`의 응답이 `'hello'` 응답 이후에 도착할 수 있습니다.
+- `setReulsts`를 마지막으로 호출할 것이므로 잘못된 결과를 화면에 표시할 수도 있습니다.
+- 이는 **경쟁 상태**라고 합니다.
+- 2개의 서로 다른 요청이 **경쟁**했고 예상했던 순서와 다르게 도착했습니다.
+  <br><br>
+- 경쟁 상태를 고치기 위해 이전 반응을 무시하는 초기화 함수를 추가해야 합니다.
+
+```js
+function SearchResults({ query }) {
+  const [results, setResults] = useState([]);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    let ignore = false;
+
+    fetchResults(query, page).then(json => {
+      if (!ignore) {
+        setResults(json);
+      }
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [query, page]);
+
+  function handleNextPageClick() {
+    setPage(page + 1);
+  }
+  // ...
+}
+```
+
+<br>
+
+- 이렇게 하면 `Effect`가 데이터를 페치할 때 마지막으로 요청한 응답을 제외한 모든 응답이 무시됩니다.
+  <br><br>
+- 경쟁 상태를 처리하는 것이 데이터 페칭을 구현하는데 마주치는 유일한 걸림돌은 아닙니다.
+- 응답을 캐싱하는 방법, 서버에서 데이터를 페치하는 방법, 네트워크 waterfall을 피하는 방법 등이 필요할 겁니다.
+- 이러한 이슈는 비단 `React`뿐만 아니라 모든 UI 라이브러리에도 적용됩니다.
+- 이를 해결하는 방법은 사소하지 않기에, 현대 프레임워크는 컴포넌트에 직접 `Effect`을 추가하는 것보다 더 효율적인 빌트인 데이터 페치 메커니즘을 제공합니다.
+  <br><br>
+- 프레임워크를 사용하지 않고 `Effect`를 사용한 데이터 페치를 사용하고 싶다면, 아래 예시처럼 사용자 정의 `Hook`으로 페치 로직을 추출해야 합니다.
+
+```js
+function SearchResults({ query }) {
+  const [page, setPage] = useState(1);
+  const params = new URLSearchParams({ query, page });
+  const results = useData(`/api/search?${params}`);
+
+  function handleNextPageClick() {
+    setPage(page + 1);
+  }
+  // ...
+}
+
+function useData(url) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let ignore = false;
+    fetch(url)
+      .then(response => response.json())
+      .then(json => {
+        if (!ignore) {
+          setData(json);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [url]);
+  return data;
+}
+```
+
+<br>
+
+- 오류를 처리하고 내용이 잘 로드되는지 여부를 확인하기 위한 로직을 추가할 수도 있습니다.
+- 이와 같은 `Hook`를 직접 만들거나 `React` 생태계에 존재하는 솔루션 중 하나를 사용할 수도 있습니다.
+- **위 예제를 활용한다고 프레임워크의 빌트인 데이터 페치 메커니즘보다 더 효율적이지는 않지만, 데이터 페치 로직을 사용자 정의 `Hook`로 이동하면 나중에 효율적인 데이터 페치 전략을 채택하는 것이 더 쉬울 것입니다.**
+  <br><br>
+- 일반적으로 `Effect`를 사용할 때마다 `useData`와 같이 선언적이고 목적에 맞는 API를 사용하여 사용자 정의 `Hook`에 있는 기능의 일부를 추출하는 방법도 고려해야 합니다.
+- 컴포넌트에서 `useEffect` 호출이 적을수록 응용 프로그램을 쉽게 유지관리할 수 있습니다.
+
+## 요약
+
+- 렌더링하는 동안 무언가 계산할 수 있다면 `Effect`가 필요하지 않습니다.
+- 고비용 계산을 캐시하기 위해선 `useMemo`를 사용합니다.
+- 전체 컴포넌트 트리의 상태를 재설정하려면 다른 `key`를 트리에 전달합니다.
+- `prop` 변경에 대한 응답으로 특정 상태 비트를 재설정하려면 렌더링 도중에 변경해야 합니다.
+- 컴포넌트가 화면에 **표시되는** 코드는 `Effect`에 존재해야 하고 나머지는 이벤트 핸들러에 있어야 합니다.
+- 여러 컴포넌트의 상태를 업데이트하는 경우 단일 이벤트에서 업데이트하는 것이 좋습니다.
+- 다른 컴포넌트에서 상태 변수를 동기화하려고 할 때마다 상태 끌어올리기를 생각해야 합니다.
+- `Effect`를 사용하여 데이터를 페치할 수 있지만, 경쟁 상태를 방지하려면 초기화 함수를 구현해야 합니다.
