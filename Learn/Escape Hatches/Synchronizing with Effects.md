@@ -1,0 +1,1053 @@
+# Synchronizing with Effects
+
+- 일부 컴포넌트는 외부 시스템과의 동기화가 필요합니다.
+- 예를 들어 `React` 상태를 기반으로 `non-React` 컴포넌트를 제어할 때, 서버 연결을 설정할 때, 화면에 컴포넌트가 나타날 때 분석 로그를 보낼 때가 존재합니다.
+- `Effect`는 렌더링 이후에 코드를 작동시켜 `React` 외부 시스템과 컴포넌트를 동기화할 수 있습니다.
+
+## 배우게 될 것
+
+- `Effect`란 무엇인가
+- `Effect`와 이벤트의 차이점
+- 컴포넌트에서 `Effect`를 선언하는 방법
+- `Effect` 재실행을 불필요하게 스킵하는 방법
+- 개발 환경에서 `Effect`가 2번 실행되는 이유와 해결 방법
+
+## `Effect`란 무엇인가? 이벤트와의 차이점은?
+
+- `Effect` 이전에 `React` 컴포넌트에서 사용하는 2개 종류 로직에 익숙해졌을 겁니다.
+
+1. **코드 렌더링**은 컴포넌트의 최상단에 존재합니다.
+   - `props`와 상태를 얻고, 변경하고, 화면에 필요한 `JSX`를 반환하는 위치입니다.
+   - **코드 렌더링은 순수해야 합니다.**
+   - 수학 공식처럼, **계산만** 수행하며 부수효과는 존재하지 않습니다.
+2. **이벤트 핸들러**는 계산을 수행하는 것이 아니라, 컴포넌트 안에서 **동작을 수행**하는 중첩 함수입니다.
+   - 이벤트 핸들러는 `input` 필드 업데이트, HTTP POST 요청 제출, 유저를 다른 화면으로 이동시키는 동작을 수행할 수 있습니다.
+   - 이벤트 핸들러는 특정 유저 행동에 의해 유발되는 부수효과를 가지고 있습니다. (타이핑, 버튼 클릭 등)
+
+<br>
+
+- `Effect`의 사용 이유가 아직 충분하지 않습니다.
+- 채팅이 화면에 보일 때마다 채팅 서버를 연결해야 하는 `Chatroom` 컴포넌트를 생각해볼까요?
+- 서버에 연결하는 것은 순수한 동작이 아니기에 렌더링 도중 발생할 수 없습니다.
+- 그러나 클릭 한 번으로 `ChatRoom` 컴포넌트가 표시되는 특정 이벤트는 없습니다.
+  <br><br>
+- `Effect`는 **렌더링 자체에서 발생하는 부수 효과를 특정합니다.**
+- 채팅 메시지를 보내는 것은 유저의 버튼 클릭에 의해 직접적으로 발생하므로 **이벤트**입니다.
+- 하지만 서버 연결을 설정하는 것은 컴포넌트 표시 여부에 관계없이 필요한 작업이므로 **`Effect`**입니다.
+- `Effect`는 화면 업데이트 이후인 렌더링 프로세스 맨 끝에 실행됩니다.
+- 이는 외부 시스템과 `React` 컴포넌트를 동기화하는 좋은 시점입니다.
+
+## Note
+
+- 본문의 여기와 뒷부분에서 대문자로된 `Effect`는 `React` 고유 개념인 렌더링으로 인한 부수효과를 의미합니다.
+- 더 넓은 프로그래밍 개념 설명을 위해 **부수 효과**라는 단어를 사용할 것입니다.
+
+## `Effect`를 꼭 사용할 필요는 없다
+
+- 컴포넌트에 `Effect`를 추가하려고 허겁지겁 달려들면 안 됩니다.
+- `Effect`는 일반적으로 `React` 코드에서 **벗어나** 외부 시스템과 동기화할 때 사용됩니다.
+- 브라우저 API, 서드파티 위젯, 네트워크 등의 외부 시스템말입니다.
+- 다른 상태를 기준으로 일부 상태만 조정하는 경우 굳이 `Effect`를 사용할 필요 없습니다.
+
+## `Effect` 작성 방법
+
+1. `Effect` 선언
+   - 기본적으로, `Effect`는 모든 렌더링 이후에 실행됩니다.
+2. `Effect` 종속성 지정
+   - 대부분의 `Effect`는 렌더링마다 실행되는 것이 아니라, **필요할 때만** 재실행됩니다.
+   - 예를 들어, **fade-in** 애니메이션은 컴포넌트가 화면에 나타날 때만 트리거됩니다.
+   - 채팅방과 연결되거나, 연결이 끊기거나, 채팅방이 변경될 때만 수행되어야 합니다.
+   - 종속성을 지정하여 이를 제어하는 방법을 배울 것입니다.
+3. 필요한 경우 초기화 추가
+   - 일부 `Effect`는 수행 중인 작업의 정지, 취소, 초기화하는 방법을 지정해야 합니다.
+   - 예를 들어 **연결**은 **연결 끊기**가 필요하고, **구독**은 **구독 취소**가 필요하며, **페치**는 **취소**나 **무시**가 필요합니다.
+   - 초기화 함수 반환을 통해 위 작업을 배울 것입니다.
+     <br><br>
+
+- 자세히 살펴보겠습니다.
+
+## 1단계: `Effect` 선언
+
+- 컴포넌트에서 `Effect`를 선언하려면 `useEffect` `Hook`을 `import`해야 합니다.
+
+```js
+import { useEffect } from 'react';
+```
+
+<br>
+
+- 이후 컴포넌트 최상단에서 `useEffect`를 호출하고 `useEffect` 안에 코드를 작성합니다.
+
+```js
+function MyComponent() {
+  useEffect(() => {
+    // 이 코드는 모든 렌더링 이후 동작합니다.
+  });
+  return <div />;
+}
+```
+
+<br>
+
+- 컴포넌트가 렌더링될 때마다 `React`는 화면을 업데이트하고, **이후에** `useEffect`의 내부 코드를 실행합니다.
+- **즉, `useEffect`는 렌더링이 화면에 반영될 때까지 일부 코드의 실행을 지연시킵니다.**
+  <br><br>
+- `Effect`를 활용하여 외부 시스템과 동기화하는 방법을 살펴볼까요?
+- `<VideoPlayer>` 컴포넌트를 살펴봅시다.
+- `isPlaying` `prop`을 전달하며 실행되거나 멈추면 좋을 것 같습니다.
+
+```js
+<VideoPlayer isPlaying={isPlaying} />
+```
+
+<br>
+
+- `<VideoPlayer>` 컴포넌트는 빌트인 브라우저 태그인 `<video>`를 렌더링합니다.
+
+```js
+function VideoPlayer({ src, isPlaying }) {
+  // TODO: isPlaying을 활용하세요!
+  return <video src={src} />;
+}
+```
+
+<br>
+
+- 하지만 브라우저 태그 `<video>`는 `isPlaying` `prop`을 갖고 있지 않습니다.
+- `<video>`를 제어하는 유일한 방법은 `DOM` 요소에서 수동으로 `play`, `pause` 메서드의 호출입니다.
+- 비디오의 재생 여부를 알려주는 `isPlaying` `prop` 값을 `play`, `pause`와 같은 필수 호출 함수와 동기화해야 합니다.
+  <br><br>
+- 먼저 `<video>` `DOM` 노드에 대한 `ref`가 필요합니다.
+- `play`, `pause` 메서드를 렌더링 도중 호출하고 싶은 마음이 굴뚝같겠지만, 오류가 발생합니다.
+
+```js
+import { useState, useRef, useEffect } from 'react';
+
+function VideoPlayer({ src, isPlaying }) {
+  const ref = useRef(null);
+
+  if (isPlaying) {
+    ref.current.play();
+  } else {
+    ref.current.pause();
+  }
+
+  return <video ref={ref} src={src} loop playsInline />;
+}
+
+export default function App() {
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  return (
+    <>
+      <button onClick={() => setIsPlaying(!setIsPlaying)}>
+        {isPlaying ? 'Pause' : 'Play'}
+      </button>
+      <VideoPlayer
+        src={
+          (src =
+            'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4')
+        }
+        isPlaying={isPlaying}
+      />
+    </>
+  );
+}
+```
+
+<br>
+
+- 코드가 올바르지 않은 이유는 렌더링 도중에 `DOM` 요소로 무언가 시도하기 때문입니다.
+- `React`에서 렌더링은 `JSX`의 **순수 계산**이어야 하고, `DOM` 수정과 같은 부수 효과가 존재하면 안 됩니다.
+  <br><br>
+- 게다가 `VideoPlayer`가 처음으로 호출될 때는 `DOM` 노드가 존재하기도 전입니다.
+- `play` 혹은 `pause`를 호출할 `DOM` 노드가 아직 없습니다.
+- 왜냐하면 `JSX`를 반환하기 전까지 `React`는 어떤 `DOM`을 생성해야 할 지 모릅니다.
+  <br><br>
+- 해결책은 `useEffect`로 부수 효과를 래핑하여 렌더링 계산에서 벗어나는 것입니다.
+
+```js
+import { useRef, useEffect } from 'react';
+
+function VideoPlayer({ src, isPlaying }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (isPlaying) {
+      ref.current.play();
+    } else {
+      ref.current.pause();
+    }
+  });
+
+  return <video ref={ref} src={src} loop playsInline />;
+}
+```
+
+<br>
+
+- `Effect` 내부의 `DOM` 업데이트를 래핑하여, `React`는 화면 업데이트를 첫번째로 수행할 수 있습니다.
+- 이후 `Effect`가 동작합니다.
+  <br><br>
+- `VideoPlayer` 컴포넌트가 렌더링 될 때, 몇가지 작업이 수행됩니다.
+
+1. `React`는 화면을 업데이트하여 `<video>` 태그가 올바른 `props`와 함께 `DOM`에 있는지 확인합니다.
+2. `React`는 `Effect`를 실행합니다.
+3. `Effect`는 `isPlaying` `prop` 값에 따라 `play`, `pause`를 호출합니다.
+   <br><br>
+
+- `Play`/`Pause` 버튼을 여러번 누른 후 비디오 플레이어가 `isPlaying`의 값과 동기화하는지 살펴보세요.
+
+```js
+import { useState, useRef, useEffect } from 'react';
+
+function VideoPlayer({ src, isPlaying }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (isPlaying) {
+      ref.current.play();
+    } else {
+      ref.current.pause();
+    }
+  });
+
+  return <video ref={ref} src={src} loop playsInline />;
+}
+
+export default function App() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  return (
+    <>
+      <button onClick={() => setIsPlaying(!isPlaying)}>
+        {isPlaying ? 'Pause' : 'Play'}
+      </button>
+      <VideoPlayer
+        isPlaying={isPlaying}
+        src='https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4'
+      />
+    </>
+  );
+}
+```
+
+- 예를 들어 `React` 상태와 동기화하는 **외부 시스템**은 브라우저의 미디어 API입니다.
+- 유사한 방법을 사용하여 기존의 `non-React` 코드를 선언적 `React` 코드로 래핑할 수 있습니다.
+  <br><br>
+- 실제로 비디오 플레이어를 제어할 때는 훨씬 더 복잡합니다.
+- `play` 호출은 실패할 것이고, 유저는 내장 브라우저를 사용하여 재생하거나 중지할 수 있습니다.
+- 이 예제는 지나치게 단순화되어있고 완벽하지 않습니다.
+
+## 함정
+
+- 기본적으로, `Effect`는 모든 렌더링 **이후에** 실행됩니다.
+- 아래는 이러한 코드가 무한 루프를 도는 이유입니다.
+
+```js
+const [count, setCount] = useState(0);
+useEffect(() => {
+  setCount(count + 1);
+});
+```
+
+<br>
+
+- 렌더링의 결과로 `Effect`가 실행됩니다.
+- 상태 설정은 렌더링을 트리거합니다.
+- `Effect` 내부에서 상태를 설정하는 것은 콘센트 전원을 멀티탭 자체에 꽂는 것과 같습니다.
+- `Effect`는 실행되고 리렌더링을 수행하는 상태를 변경하고, 다시 `Effect`가 실행되고 상태를 변경하는 무한 리렌더링이 지속됩니다.
+  <br><br>
+- `Effect`는 외부 시스템과 컴포넌트를 동기화해야 합니다.
+- 외부 시스템이 없고 다른 상태를 기준으로 일부 상태만 조정하는 경우 굳이 `Effect`를 사용할 필요 없습니다.
+
+## 2단계: Effect 종속성 지정
+
+- 기본적으로 `Effect`는 모든 렌더링 이후에 실행됩니다.
+- 가끔 순서를 변경하고 싶을 때도 있습니다.
+
+1. 때론 느립니다.
+
+   - 외부 시스템과의 동기화는 항상 즉각적으로 진행되는 것은 아니기에, 필요할 때까지 미루고 싶을 때가 있습니다.
+   - 예를 들어 키를 누를 때마다 채팅 서버에 다시 연결하지 않을 수 있습니다.
+
+2. 때론 잘못되었습니다.
+
+   - 예를 들어 키를 누를 때마다 컴포넌트의 `fade-in`을 트리거하고 싶지 않을 때가 있습니다.
+   - 애니메이션은 컴포넌트가 처음으로 화면에 보여질 때 한 번만 실행되어야 합니다.
+
+- 이 문제를 설명하기 위하여 몇 개의 `console.log` 호출, 상위 컴포넌트의 상태를 업데이트하는 텍스트 `input`을 사용한 이전 예제를 살펴보겠습니다.
+- 타이핑이 `Effect`를 유발하는 방법을 유의하세요.
+
+```js
+import { useState, useRef, useEffect } from 'react';
+
+function VideoPlayer({ isPlaying, src }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (isPlaying) {
+      console.log('Calilng video.play()');
+      ref.current.play();
+    } else {
+      console.log('Calilng video.pause()');
+      ref.current.pause();
+    }
+  });
+
+  return <video ref={ref} src={src} loop playsInline />;
+}
+
+export default function App() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [text, setText] = useState('');
+
+  return (
+    <>
+      <input value={text} onChange={(e) => setText(e.target.value)} />
+      <button onClick={() => setIsPlaying(!isPlaying)}>
+        {isPlaying ? 'Pause' : 'Play'}
+      </button>
+      <VideoPlayer
+        isPlaying={isPlaying}
+        src={
+          'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4'
+        }
+      />
+    </>
+  );
+}
+```
+
+- `Effect`의 2번째 인수로 **종속성** 배열을 지정하여 불필요하게 `Effect`를 다시 실행하지 않도록 할 수 있습니다.
+- 14번째 라인에 빈 배열을 추가해보겠습니다.
+
+```js
+useEffect(() => {
+  // ...
+}, []);
+```
+
+<br>
+
+- `React Hook useEffect has a missing dependency: 'isPlaying'` 에러를 마주할 겁니다.
+- `Effect` 코드의 동작은 `isPlaying` `prop`에 의해 결정되지만, 이러한 종속성은 명시적으로 선언되지 않았기에 문제가 발생합니다.
+- 오류를 해결하려면 종속성 배열에 `isPlaying`을 추가합니다.
+
+```js
+useEffect(() => {
+  if (isPlaying) {
+    // ...
+  } else {
+    // ...
+  }
+}, [isPlaying]); // 명시적으로 선언!
+```
+
+<br>
+
+- 모든 종속성이 선언되었기에 에러가 발생하지 않습니다.
+- 종속성 배열로 `[isPlaying]`을 지정하는 것은 이전 렌더링과 동일한 경우 재실행을 건너뛰라고 `React`에게 알립니다.
+- 이렇게 코드를 작성하면 `input`에 타이핑하는 것은 `Effect`를 재실행하지 않고, `Play`/`Pause` 버튼을 누르는 것은 `Effect`를 재실행합니다.
+
+```js
+function VideoPlayer({ src, isPlaying }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (isPlaying) {
+      console.log('Calling video.play()');
+      ref.current.play();
+    } else {
+      console.log('Calling video.pause()');
+      ref.current.pause();
+    }
+  }, [isPlaying]);
+}
+```
+
+<br>
+
+- 종속성 배열은 여러 종속성을 담을 수 있습니다.
+- `React`는 종속성 배열의 **모든** 값이 이전 렌더링과 동일한 경우에 재실행을 건너뜁니다.
+- `React`는 종속성 값을 비교할 때 `Object.is` 함수를 사용합니다.
+  <br><br>
+- **사용되는 종속성을 선택할 수 있다는 것을 확인하세요.**
+- 지정한 종속성과 `Effect` 코드의 예상결과가 다르면 린트 에러를 발생합니다.
+- 이는 코드의 여러 버그를 캐치할 수 있도록 도와줍니다.
+- `Effect`가 데이터를 사용하지만, 데이터를 변경할 때 재실행을 하고 싶지 않다면 **종속성이 필요하지 않도록 `Effect` 코드 자체를 수정해야 합니다.**
+
+## 주의
+
+- 종속성 배열이 **없는** 동작과 종속성 배열이 **비어 있는** 동작은 매우 다릅니다.
+
+```js
+useEffect(() => {
+  // 모든 렌더링 이후에 실행됩니다.
+});
+
+useEffect(() => {
+  // 마운트 될 때만 실행됩니다.
+}, []);
+
+useEffect(() => {
+  // 마운트 될 때와 a or b가 마지막 렌더링 이후 변경된 경우에만 실행됩니다.
+}, [a, b]);
+```
+
+## Deep Dive - 종속성 배열에서 ref가 누락된 이유는?
+
+- 아래 `Effect`는 `ref`, `isPlaying`을 모두 사용하지만, `isPlyaing`만 종속성 내부에 선언되어 있습니다.
+
+```js
+function VideoPlayer({ src, isPlaying }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (isPlaying) {
+      ref.current.play();
+    } else {
+      ref.current.pause();
+    }
+  }, [isPlaying]);
+}
+```
+
+<br>
+
+- `ref` 객체가 안정적인 아이덴티티를 소유하기 때문입니다.
+- `React`는 매 렌더링마다 호출되는 동일한 `useRef`에서 언제나 동일한 객체를 얻을 수 있도록 보장합니다.
+- 이러한 사실은 바뀌지 않기에, `ref`가 `Effect`를 재실행하는 일은 없습니다.
+- 게다가, `ref`를 종속성에 추가하든 말든 상관없이 동작합니다.
+
+```js
+function VideoPlayer({ src, isPlaying }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (isPlaying) {
+      ref.current.play();
+    } else {
+      ref.current.pause();
+    }
+  }, [isPlaying, ref]);
+}
+```
+
+<br>
+
+- `useState`에서 반환된 `set` 함수들 또한 안정적인 아이덴티티를 소유하고 있습니다.
+- 따라서 종속성 배열에 추가하지 않아도 됩니다.
+- 린터를 사용하여 오류 없이 종속성을 생략할 수 있다면 안전한 방법입니다.
+  <br><br>
+- 안전한 종속성을 제외하는 것은 린터가 항상 객체가 안정적이라는 것을 **확인할** 때만 동작합니다.
+- 예를 들어 상위 컴포넌트에서 전달된 `ref`는 종속성 배열에 지정해야 합니다.
+- 하지만 상위 컴포넌트가 항상 같은 `ref`를 전달할지, 조건에 따라 여러 `ref`중 한 개를 전달할지 모르기 때문에 좋은 방법입니다.
+- 따라서 어떤 `ref`가 전달되는지에 따라 `Effect`가 달라집니다.
+
+## 3단계: 필요한 경우 초기화 추가
+
+- 다른 예제를 살펴보겠습니다.
+- 화면에 보여질 때마다 채팅 서버와 연결해야하는 `ChatRoom` 컴포넌트를 생성하겠습니다.
+- `connect`, `disconnect` 메서드가 들어있는 객체를 반환하는 `createConnection` API가 주어졌습니다.
+- 컴포넌트가 유저에게 보여지는 동안 연결을 유지하려면 어떻게 해야할까요?
+
+```js
+useEffect(() => {
+  const connection = createConnection();
+  connection.connect();
+});
+```
+
+<br>
+
+- 매 렌더링 이후에 채팅서버와 느리게 연결될 것이기에 종속성 배열을 추가합니다.
+
+```js
+useEffect(() => {
+  const connection = createConnection();
+  connection.connect();
+}, []);
+```
+
+<br>
+
+- **`Effect` 내부의 코드는 어떠한 `props`나 상태를 사용하지 않고 종속성 배열은 비어있습니다.**
+- 이는 마운트될 때만 동작할 수 있도록 합니다.
+- 즉, `Effect`는 첫번째로 화면에 나타날 때만 동작합니다.
+
+```js
+// App.js
+import { useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+export default function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+  }, []);
+  return <h1>Welcome to the chat!</h1>;
+}
+```
+
+```js
+export function createConnection() {
+  return {
+    connect() {
+      console.log('✅ Connecting...');
+    },
+    disconnect() {
+      console.log('❌ Disconnected.');
+    },
+  };
+}
+```
+
+<br>
+
+- 위 `Effect`는 마운트 될 때만 동작합니다.
+- 따라서 `"✅ Connecting..."`가 콘솔에 출력됩니다.
+- **하지만 콘솔을 확인해보면 `"✅ Connecting..."`는 2번 출력됩니다.**
+- **왜 이런 일이 발생할까요?**
+  <br><br>
+- `ChatRoom` 컴포넌트가 많은 페이지가 존재하는 큰 어플리케이션의 일부라고 생각해볼까요?
+- 유저는 `ChatRoom`을 시작으로 앱의 이곳저곳을 확인합니다.
+- 컴포넌트는 마운트되고 `connection.connect`를 호출합니다.
+- 이후 유저가 설정 페이지로 이동한다고 생각해보세요.
+- `ChatRoom` 컴포넌트는 언마운트됩니다.
+- 마지막으로 유저가 뒤로가기 버튼을 클릭했고 `ChatRoom`은 다시 `DOM`에 삽입됩니다.
+- 두번째 연결이 설정되었지만, 첫번째 연결은 파괴되지 않았습니다.
+- 다른 페이지로 이동함에 따라 연결은 계속 유지될 겁니다.
+  <br><br>
+- 이와 같은 버그는 광범위한 수동 테스트 없이는 놓치기 쉽습니다.
+- 버그를 빨리 발견하기 위해 개발 환경에서 `React`는 모든 컴포넌트를 첫 마운트 직후 한 번 더 마운트합니다.
+- `"✅ Connecting..."` 로그를 2번 보는 것은 실제 이슈를 확인하는데 유용합니다.
+- 컴포넌트가 언마운트될 때 연결이 유지되고 있다는 의미입니다.
+- 이를 해결하기 위해 `Effect`에서 초기화 함수를 반환합니다.
+
+```js
+useEffect(() => {
+  const connection = createConnection();
+  connection.connect();
+  return () => {
+    connection.disconnect();
+  };
+}, []);
+```
+
+<br>
+
+- `React`는 `Effect` 함수를 다시 실행하기 전 매번 초기화 함수를 호출하고, 컴포넌트가 언마운트될 때 마지막으로 한 번 호출합니다.
+- 초기화 함수가 구현되었을 때 어떻게 동작하는지 확인해 볼까요?
+
+```js
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+export default function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    return () => connection.disconnect();
+  }, []);
+  return <h1>Welcome to the chat!</h1>;
+}
+```
+
+<br>
+
+- 3개의 콘솔을 확인할 겁니다.
+
+1. `"✅ Connecting..."`
+2. `"❌ Disconnected."`
+3. `"✅ Connecting..."`
+   <br>
+
+- 개발 환경에서 올바른 동작입니다.
+- 컴포넌트 리마운팅을 통해, `React`는 페이지 이동 시에 코드의 손상 여부를 확인합니다.
+- 연결 해제되었다가 다시 연결되는 것은 반드시 일어나야 합니다.
+- 초기화 함수를 잘 구현한다면, `Effect`가 1번만 실행되는 것과 `Effect` 실행-초기화 함수 실행-`Effect` 재실행과의 차이점은 사용자가 확인할 수 없습니다.
+- `React`는 버그에 대한 코드를 조사하기 때문에 연결/비연결의 호출 쌍이 존재합니다.
+- 이는 지극히 정상이며 제거하면 안 됩니다.
+  <br><br>
+- 운영 환경에서는 `"✅ Connecting..."`가 1번만 보여집니다.
+- 컴포넌트 리마운트는 초기화에 필요한 `Effect`를 찾는데 도움이 되도록 개발 환경에서만 수행됩니다.
+- `Strict Mode`를 해제하여 개발 동작을 해제할 수 있지만, 권장하지 않습니다.
+- 이는 많은 버그를 찾을 수 있도록 도와주기 때문입니다.
+
+## 개발 환경에서 Effect 실행을 2번하는 방법
+
+- `React`는 버그를 찾기 위해 개발 중인 컴포넌트를 의도적으로 리마운트합니다.
+- **올바른 질문은 `Effect`를 1번 실행하는 방법이 아니라, 리마운트 이후 `Effect`가 동작하도록 고치는 방법입니다.**
+  <br><br>
+- 일반적으로 사용되는 올바른 방법은 초기화 함수를 구현하는 것입니다.
+- 초기화 함수는 `Effect`가 수행하던 작업을 중지하거나 실행 취소합니다.
+- 유저의 어림짐작으로는 `Effect`가 1번만 실행되는지, **설정-초기화-설정** 시퀀스를 구별할 수 없어야 합니다.
+- 우리가 사용하는 대부분은의 `Effect`는 아래 패턴 중 하나일 것입니다.
+
+### non-React 위젯 제어
+
+- `non-React` 컴포넌트에 위젯을 추가하는 경우가 존재합니다.
+- 예를 들어 페이지에 지도 컴포넌트를 추가해봅시다.
+- 이 컴포넌트는 `setZoomLevel` 메서드를 소유하며 `React`의 `zoomLevel` 상태 변수와 동기화하여 줌 레벨을 유지합니다.
+- `Effect` 코드는 아래와 같을 겁니다.
+
+```js
+useEffect(() => {
+  const map = mapRef.current;
+  map.setZoomLevel(zoomLevel);
+}, [zoomLevel]);
+```
+
+<br>
+
+- 이 경우 초기화 함수는 필요하지 않습니다.
+- 개발 환경에서 `React`는 `Effect`를 2번 실행하지만 아무 문제도 발생하지 않습니다.
+- 왜냐하면 `setZoomLevel`을 2번 실행해도 아무 일도 발생하지 않기 때문입니다.
+- 조금 느릴 순 있지만, 리마운트는 개발 환경에서만 발생하고 운영 환경에서는 발생하지 않기 때문에 괜찮습니다.
+  <br><br>
+- 일부 API는 연속으로 2번 호출할 수 없습니다.
+- 예를 들어 빌트인 `<dialog>` 요소의 `showModal` 메서드는 2번 호출되는 경우 에러를 발생시킵니다.
+- 초기화 함수를 구현하고 대화 상자를 닫아볼까요?
+
+```js
+useEffect(() => {
+  const dialog = dialogRef.current;
+  dialog.showModal();
+  return () => dialog.close();
+}, []);
+```
+
+<br>
+
+- 개발 환경에서 `Effect`는 `showModal` 함수를 호출합니다.
+- 곧바로 `close` 함수를 실행하고 다시 `shoModal` 함수를 호출합니다.
+- 운영 환경에서 사용자가 보는 화면은 `showModal`을 1번 호출하는 것과 동일합니다.
+
+### 이벤트 구독
+
+- `Effect`가 무언가 구독한다면, 초기화 함수는 구독을 취소해야 합니다.
+
+```js
+useEffect(() => {
+  function handleScroll(e) {
+    console.log(e.clientX, e.clientY);
+  }
+  window.addEventListener('scroll', handleScroll);
+  return () => window.removeEventListener('scroll', handleScroll);
+}, []);
+```
+
+<br>
+
+- 개발 환경에서 `Effect`는 `addEventListener`를 호출합니다.
+- 곧바로 `removeEventListener`를 호출하고 같은 핸들러를 사용하여 다시 `addEventListener`를 호출합니다.
+- 따라서 한 번에 하나의 구독만 활성화될 수 있습니다.
+- 운영 환경에서 사용자가 보는 화면은 `addEventListener`을 1번 호출하는 것과 동일합니다.
+
+### 애니메이션 트리거
+
+- `Effect`가 무언가에 애니메이션을 적용한다면, 초기화 함수는 애니메이션을 초기 값으로 재설정해야 합니다.
+
+```js
+useEffect(() => {
+  const node = ref.current;
+  node.style.opacity = 1; // 애니메이션 트리거
+  return () => {
+    node.style.opacity = 0; // 초기값으로 재설정
+  };
+}, []);
+```
+
+<br>
+
+- 개발 환경에서 불투명도는 1-0-1 순서로 설정됩니다.
+- 운영 환경에서 사용자가 보는 화면은 `opacity`를 직접 1로 설정하는 것과 동일합니다.
+
+## 데이터 페치
+
+- `Effect`가 무언가 페치한다면, 초기화 함수는 페치를 중단하거나 결과를 무시해야 합니다.
+
+```js
+useEffect(() => {
+  let ignore = false;
+
+  async function startFetching() {
+    const json = await fetchTodos(userId);
+    if (!ignore) {
+      setTodos(json);
+    }
+  }
+  startFetching();
+
+  return () => {
+    ignore = true;
+  };
+}, [userId]);
+```
+
+<br>
+
+- 이미 발생한 네트워크 요청을 **취소**할 수는 없지만, 초기화 함수는 **관련 없는** 페치가 응용 프로그램에 영향을 미치지 않도록 해야 합니다.
+- 예를 들어 `useId`가 `Alice`에서 `Bob`으로 변경된다면, `Bob`보다 더 늦게 응답되더라도 초기화 함수는 `Alice`의 응답을 무시합니다.
+  <br><br>
+- **개발 환경에서 네트워크 탭에 있는 2개의 페치를 볼 수 있습니다.**
+- 이는 아무 문제 없습니다.
+- 위 접근 방식을 사용하면 첫 `Effect`가 즉시 초기화되어 `ignore` 변수의 복사본이 `true`로 설정됩니다.
+- 추가 요청이 존재하여도 `if (!ignore)` 덕분에 상태에 영향은 없습니다.
+  <br><br>
+- 운영 환경에서는 요청이 1개뿐입니다.
+- 개발 화경에서 2번째 요청이 불편한 경우, 최고의 접근 방법은 중복을 제거하고 컴포넌트 간의 응답을 캐시하는 방법을 사용하는 것입니다.
+
+```js
+function TodoList() {
+  const todos = useSomeDataLibrary(`/api/user/${userId}/todos`);
+  // ...
+}
+```
+
+<br>
+
+- 이는 개발 경험을 향상시키지도 않고 어플리케이션의 속도를 향상시키지도 않습니다.
+- 예를 들어 데이터는 캐시될 것이기 때문에 유저가 뒤로가기 버튼을 클릭하는 것은 일부 데이터를 불러오기까지 기다릴 필요가 없습니다.
+- 이러한 캐시를 직접 작성하거나 `Effect`에서 수동으로 가져오는 대신 여러 대안 중 하나를 사용할 수 있습니다.
+
+## Deep Dive - Effect에서 데이터를 가져오는 좋은 방법은 무엇인가요?
+
+- `Effect` 내에서 `fetch` 호출을 사용하는 이유는 특히 클라이언트 사이드 앱에서 데이터를 페치하는데 좋은 방법입니다.
+- 하지만 이는 굉장히 수동적인 방법이고 다음과 같은 단점이 존재합니다.
+
+1. `Effect`는 서버에서 실행되지 않습니다.
+   - 즉, 초기 서버 렌더링 `HTML`에는 데이터가 없는 로드 상태만 포함됩니다.
+   - 클라이언트 컴퓨터는 모든 `JS`를 다운로드해야 하고 앱을 렌더링해야 데이터를 불러올 수 있습니다.
+   - 이는 굉장히 효율적이지 않습니다.
+2. `Effect`에서 직접적으로 페치하는 것은 네트워크 장애를 쉽게 생성할 수 있습니다.
+   - 상위 컴포넌트를 렌더링하고, 데이터를 페치하고, 하위 컴포넌트를 렌더링하고, 그 데이터를 페이하기 시작합니다.
+   - 네트워크가 굉장히 빠르지 않은 경우 데이터를 병렬로 페치하는 것보다 굉장히 느립니다.
+3. `Effect`에서 직접적으로 페치하는 것은 데이터를 미리 불러오거나 캐시하지 않아도 된다는 것을 의미합니다.
+   - 예를 들어 컴포넌트가 언마운트되고 다시 마운트된다면, 데이터를 다시 페치해야 합니다.
+4. 인체 공학적이지 않습니다.
+   - 경쟁 상태 같은 버그가 없는 방식으로 `fetch` 호출을 사용할 때 많은 보일러플레이트 코드가 필요합니다.
+     <br><br>
+
+- 아래의 리스트는 `React`에만 국한되지 않습니다.
+- 라이브러리를 사용하여 마운트된 데이터를 페치하는 경우에만 적용됩니다.
+- 라우팅과 마찬가지로 데이터를 페치하는 것은 쉽지 않으므로 아래 접근 방식을 권장합니다.
+
+1. 프레임워크를 사용한다면, 빌트인 데이터 페치 메카니즘을 사용합니다.
+   - 모던 `React` 프레임워크는 효율적이고 위의 단점을 보완하는 데이터 페치 메커니즘을 가지고 있습니다.
+2. 사용하지 않는다면 클라이언트 캐시를 사용하거나 빌드하는 것을 고려해야 합니다.
+   - `React Query`, `useSWR`, `React Router 6.4`를 포함한 인기있는 오픈소스 등이 존재합니다.
+   - 자체 솔루션을 빌드할 수 있습니다.
+   - 이 경우 후드 아래의 효과를 사용할 수도 있지만 요청 중복 제거, 응답 캐싱 및 네트워크 장애 방지를 위한 논리도 추가할 수 있습니다.
+
+- 이러한 접근 방법이 맞지 않는다면 데이터 페치를 `Effect` 내부에서 지속할 수 있습니다.
+
+### 분석 전달
+
+- 페이지 방문 시 분석 이벤트를 보내는 코드는 아래와 같습니다.
+
+```js
+useEffect(() => {
+  logVisit(url); // POST 요청 전달
+}, [url]);
+```
+
+<br>
+
+- 개발 환경에서 `logVisit`은 모든 `URL`에 대해 2번씩 호출되므로 이를 고치려고 할 수 있습니다.
+- **그 코드 그대로 두길 권장합니다.**
+- 이전 예제에서 1번 실행되는 것과 2번 실행되는 것에서 유저가 느끼는 시각 효과는 같아야 합니다.
+- 실용적인 관점에서, 개발 중 발생한 로그가 운영 환경의 측정 기준을 왜곡하는 것을 원하지 않습니다.
+- 따라서 `logVisit`은 어떤 것도 수행해선 안 됩니다.
+- 파일을 저장할 대마다 컴포넌트는 다시 리마운트되므로, 개발 중에 추가적인 방문을 전송할 겁니다.
+  <br><br>
+- 운영 환경에서는 중복된 로고가 존재하지 않습니다.
+  <br><br>
+- 전송된 분석 이벤트를 디버깅하려면 앱을 준비 환경에 배포하거나, 일시적으로 `Strict Mode`를 해제하거나, 개발 전용 재마운트 검사를 해제합니다.
+- 또한 `Effect` 대신 경로 변경 이벤트 핸들러에서 분석을 전송할 수 있습니다.
+- `Intersection Observer` API는 어떤 컴포넌트가 얼마나 오래 화면에 보이는지 체크를 위한 정확한 분석을 가능케합니다.
+
+## Effect가 아닌 어플리케이션 초기화
+
+- 일부 로직은 어플리케이션이 시작할 때 1번만 실행됩니다.
+- 이 로직은 컴포넌트 밖으로 이동할 수 있습니다.
+
+```js
+if (typeof window !== 'undefined') {
+  // 브라우저 내부에서 실행되고 있는지 확인
+  checkAuthToken();
+  loadDataFromLocalStorage();
+}
+
+function App() {
+  // ...
+}
+```
+
+<br>
+
+- 이는 브라우저가 페이지를 로드한 **이후** 일부 로직이 실행되도록 보장합니다.
+
+## Effect가 아닌 제품 구매
+
+- 때로는 초기화 함수를 사용함에도 불구하고, `Effect`를 2번 실행하면 유저가 볼 수 있는 결과를 예방할 방법이 없습니다.
+
+```js
+useEffect(() => {
+  // 🔴 Wrong: 이 Effect는 개발 중에 2번 실행되어 코드의 문제를 노출시킵니다.
+  fetch('/api/buy', { method: 'POST' });
+}, []);
+```
+
+<br>
+
+- 그 제품을 2번 구매하고 싶지는 않을 겁니다.
+- 하지만 이것이 바로 로직을 `Effect` 내부에 넣으면 안되는 이유입니다.
+- 유저가 다른 페이지로 이동한 후 뒤로가기를 클릭하면 어떻게 될까요?
+- `Effect`는 재실행될 겁니다.
+- 사용자가 페이지를 **방문할 때** 제품을 구매할 필요가 없습니다.
+- 유저가 `Buy` 버튼을 **클릭**할 때 구매해야 합니다.
+  <br><br>
+- 구매는 렌더링에 의해 발생하는 것이 아니라 특정 인터랙션에 의해 발생합니다.
+- 구매 버튼을 1번 클릭함으로써 1번 구매됩니다.
+- `Effect`를 삭제하고 `/api/buy` 요청을 `Buy` 버튼의 이벤트 핸들러로 옮겨야 합니다.
+
+```js
+function handleClick() {
+  // ✅ 구매하는 것은 특정한 인터랙션에 의해 발생되므로 이벤트입니다.
+  fetch('/api/buy', { method: 'POST' });
+}
+```
+
+<br>
+
+- 리마운트가 어플리케이션의 로직을 망가트리는 경우, 기존 버그를 발견한다는 것을 보여줍니다.
+- 유저의 관점에서 페이지를 방문하는 것은 페이지 방문, 링크 클릭, 뒤로가기 버튼 클릭과 다를 수 없습니다.
+- `React`는 개발 환경에서 1번 리마운팅하여 컴포넌트가 이 규칙을 깨트리지 않도록 보장합니다.
+
+## 모두 함께 작성하기
+
+- 아래 예제는 `Effect`의 동작 방식을 잘 확인할 수 있습니다.
+  <br><br>
+- `setTimeout`을 사용하여 `input`에 있는 텍스트가 `Effect` 실행 3초 후에 `console.log`에 나타나도록 합니다.
+
+```js
+import { useState, useEffect } from 'react';
+
+function PlayGround() {
+  const [text, setText] = useState('');
+
+  useEffect(() => {
+    function onTimeout() {
+      console.log(`⏰ ${text}`);
+    }
+
+    console.log(`🔵 Schedule "${text}" log`);
+    const timeoutId = setTimeout(onTimeout, 3000);
+
+    return () => {
+      console.log(`🟡 Cancel "${text}" log`);
+      clearTimeout(timeoutId);
+    };
+  }, [text]);
+
+  return (
+    <>
+      <label>
+        What to log:{' '}
+        <input value={text} onChange={(e) => setText(e.target.value)} />
+      </label>
+      <h1>{text}</h1>
+    </>
+  );
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>
+        {show ? 'Unmount' : 'Mount'} the Component
+      </button>
+      {show && <hr />}
+      {show && <PlayGround />}
+    </>
+  );
+}
+```
+
+<br>
+
+- `Schedule "a" log`, `Cancel "a" log`, `Schedule "a" log ` 3개의 로그를 볼 겁니다.
+- 3초 이후에도 로그는 `a`를 보여줄 것입니다.
+- 앞서 배운 것처럼 추가적인 예약/취소 쌍은 `React`가 개발 도중 컴포넌트를 리마운트하여 초기화 함수를 잘 구현했는지 확인하기 때문입니다.
+  <br><br>
+- 이제 `input`을 `abc`로 변경해봅시다.
+- 엄청 빠르게 입력하면 `Schedule "ab" log` 바로 뒤에 `Cancel "ab" log`, `Schedule "abc" log`가 보여집니다.
+- **`React`는 항상 다음 렌더링의 `Effect`가 실행되기 전, 이전 렌더링의 `Effect`를 초기화합니다.**
+- 엄청 빠른 속도로 타이핑하여도 최대 1개의 `timeout` 함수만 예약되는 이유입니다.
+  <br><br>
+- 텍스트를 타이핑하고 곧바로 `Unmount the component` 버튼을 클릭해볼까요?
+- 언마운트 하는 것이 이전 렌더링의 `Effect`를 초기화하는 방법을 확인해보세요.
+- 이 예제에서는 실행되기 전의 마지막 `timeout` 함수를 초기화합니다.
+  <br><br>
+- 마지막으로 컴포넌트를 편집하고 `timeout`이 취소되지 않도록 초기화 함수를 주석 처리합니다.
+- `abcde`를 빠르게 타이핑해보세요.
+- 3초 이후에 어떤 결과가 나타날까요?
+- `timeout` 함수 내부의 `console.log(text)`가 **최신** `text`를 출력하고 5개의 `abcde` 로그를 생성할까요?
+  <br><br>
+- 3초 이후 5개의 `abcde` 로그 대신 (`a`, `ab`, `abc`, `abcd`, `abcde`)의 연속된 로그를 확인할 겁니다.
+- 각 `Effect`는 상응하는 렌더링으로부터 `text` 값을 **캡처**합니다.
+- 이는 `text` 상태의 변경과는 무관합니다.
+- `text = 'ab'`을 캡처한 렌더링의 `Effect`는 항상 `ab`를 갖고 있습니다.
+- 다른 말로 각 렌더링의 `Effect`는 구별됩니다.
+- 이는 클로저와 연관되어 있습니다.
+
+## Deep Dive - 각 렌더링은 Effect를 갖고 있습니다.
+
+- `useEffect`는 렌더링 출력에 동작을 **추가**하는 것이라고 생각할 수 있습니다.
+
+```js
+export default function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+
+  return <h1>Welcome to {roomId}!</h1>;
+}
+```
+
+<br>
+
+- 유저가 앱을 사용하면서 벌어지는 일이 무엇일까요?
+  <br><br>
+
+### 첫 렌더링 시
+
+- 유저는 `<ChatRoom roomId="general" />`을 방문합니다.
+- `roomId`를 `general`로 교체해봅시다.
+
+```js
+// 첫 렌더링의 JSX (roomId = "general")
+return <h1>Welcome to general!</h1>;
+```
+
+<br>
+
+- `Effect` **또한** 렌더링 출력의 일부입니다.
+- 첫 렌더링의 `Effect`는 아래와 같습니다.
+
+```js
+// 첫 렌더링의 Effect (roomId = "general")
+() => {
+  const connection = createConnection('general');
+  connection.connect();
+  return () => connection.disconnect();
+},
+  // 첫 렌더링의 종속성 (roomId = "general")
+  ['general'];
+```
+
+<br>
+
+- `React`는 `general` 채팅방과 연결된 `Effect`를 실행시킵니다.
+  <br><br>
+
+### 같은 종속성으로 리렌더링
+
+- `<ChatRoom roomId="general" />`으로 리렌더링해봅시다.
+- `JSX` 출력은 다음과 같습니다.
+
+```js
+// 2번째 렌더링의 JSX (roomId = "general")
+return <h1>Welcome to general!</h1>;
+```
+
+<br>
+
+- `React`는 변경되지 않은 렌더링 출력을 확인하기에 `DOM`을 업데이트하지 않습니다.
+- 2번째 렌더링의 `Effect`는 다음 코드와 비슷합니다.
+
+```js
+// 2번째 렌더링의 Effect (roomId = "general")
+() => {
+  const connection = createConnection('general');
+  connection.connect();
+  return () => connection.disconnect();
+},
+  // 2번째 렌더링의 종속성 (roomId = "general")
+  ['general'];
+```
+
+<br>
+
+- `React`는 첫 렌더링의 `['genral']`과 2번째 렌더링의 `['genral']`을 비교합니다.
+- **모든 종속성이 같기 때문에 `React`는 2번째 렌더링의 `Effect`를 무시합니다.**
+- 절대 호출되지 않습니다.
+
+<br>
+
+### 다른 종속성으로 리렌더링
+
+- 이후 유저가 `<ChatRoom roomId="travel" />`을 방문했습니다.
+- 현재 컴포넌트가 반환하는 `JSX`는 다음과 같습니다.
+
+```js
+// 3번째 렌더링의 JSX (roomId = "travel")
+return <h1>Welcome to travel!</h1>;
+```
+
+<br>
+
+- `React`는 `"Welcome to general"`을 `"Welcome to travel"`로 바꾸기 위해 `DOM`을 업데이트합니다.
+- 3번째 렌더링의 `Effect`는 아래와 같습니다.
+
+```js
+// 3번째 렌더링의 Effect (roomId = "travel")
+() => {
+  const connection = createConnection('travel');
+  connection.connect();
+  return () => connection.disconnect();
+},
+  // 3번째 렌더링의 종속성 (roomId = "travel")
+  ['travel'];
+```
+
+<br>
+
+- `React`는 2번째 렌더링의 `['genral']`과 3번째 렌더링의 `['travel']`을 비교합니다.
+- 1개 종속성이 다르기에 `Object.is('travel', 'general')`의 값은 `false`입니다.
+- `Effect`는 스킵됩니다.
+  <br><br>
+- `React`가 3번째 렌더링에서 `Effect`를 적용하려면 마지막으로 **실행된** `Effect`를 초기화해야 합니다.
+- 2번째 렌더링의 `Effect`는 스킵되었기에, `React`는 첫 렌더링의 `Effect`를 초기화해야 합니다.
+- 첫 렌더링으로 스크롤을 올리면 `createConnection('general')`으로 생성된 연결에서 `disconnect`를 호출하는 것을 볼 수 있습니다.
+- 이는 `'general'` 채팅방과 앱의 연결이 끊어집니다.
+- 이후 `React`는 3번째 렌더링의 `Effect`를 실행하고 `'travel'` 채팅방과 연결합니다.
+
+### 언마운트
+
+- 마지막으로 유저는 다른 곳으로 이동했고 `ChatRoom` 컴포넌트가 언마운트 되었다고 해볼까요?
+- `React`는 마지막 `Effect`의 초기화 함수를 실행합니다.
+- 마지막 `Effect`는 3번째 렌더링에 존재했습니다.
+- 3번째 렌더링의 초기화함수는 `createConnection('travel')` 연결을 파괴합니다.
+- 따라서 `'travel'`과 앱의 연결이 끊어집니다.
+
+### 개발 전용 동작
+
+- `Strict Mode`가 실행중이면, `React`는 마운트 된 이후에 모든 컴포넌트를 다시 1번 마운트합니다.
+- 이는 초기화가 필요하거나 경쟁 상태와 같은 버그를 노출하는 `Effect`를 빨리 찾을 수 있도록 합니다.
+- 추가적으로 `React`는 개발 중인 파일을 저장할 때마다 `Effect`를 리마운트합니다.
+- 위 2개 동작은 개발 환경에서만 동작합니다.
+
+## 요약
+
+- 이벤트와 다르게, `Effect`는 특정 인터랙션이 아니라 렌더링에 의해 유발됩니다.
+- `Effect`를 활용하여 외부시스템과 컴포넌트를 동기화할 수 있습니다.
+- 기본적으로 `Effect`는 모든 렌더링 이후에 실행됩니다.
+- `React`는 이전 렌더링과 모든 종속성의 값이 같다면 `Effect`를 스킵합니다.
+- 종속성은 `Effect` 코드를 통해 **선택**할 수 있습니다.
+- 빈 종속 배열(`[]`)은 화면에 추가되는 컴포넌트 마운트와 같습니다.
+- `Strict Mode`가 실행중이면 `React`는 안정성 테스트를 위해 컴포넌트를 2번 마운트합니다.
+- `Effect`가 리마운트 때문에 망가지면, 초기화 함수를 사용해야 합니다.
+- `React`는 다음 `Effect` 함수를 실행하기 전, 언마운트 도중 초기화 함수를 실행합니다.
