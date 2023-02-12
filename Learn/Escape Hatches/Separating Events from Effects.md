@@ -1,0 +1,939 @@
+# Separating Events from Effects
+
+- 이벤트 핸들러는 인터랙션을 수행할 때만 재실행됩니다.
+- 이벤트 핸들러와 달리, `Effect`는 참조한 값이(`props` or 상태 변수) 마지막 렌더링 값과 다른 경우 재동기화됩니다.
+- 때때로 위 2개 동작을 적절히 섞어 사용하고 싶을 겁니다.
+- 어떤 값에 대하여는 재실행되지만, 다른 값에는 재실행되지 않는 `Effect` 처럼요.
+
+## 배우게 될 것
+
+- 이벤트 핸들러와 `Effect` 중에서 선택하는 방법
+- `Effect`가 반응형인 이유와 이벤트 핸들러가 반응적이지 않은 이유
+- `Effect` 코드 일부가 반응적이지 않길 바랄 때 적용하는 작업
+- `Effect` 이벤트는 무엇이며 `Effect`에서 이벤트를 추출하는 방법
+- `Effect` 이벤트를 사용하여 `Effect`에서 최신 `props`, 상태를 참조하는 방법
+
+## 벤트 핸들러와 `Effect` 중에서 선택하기
+
+- 먼저 이벤트 핸들러와 `Effect`의 차이를 요약하겠습니다.
+- `ChatRoom` 컴포넌트를 구현한다고 가정했을 때 요구사항은 아래와 같습니다.
+
+1. 컴포넌트가 선택한 채팅방에 자동으로 연결됩니다.
+2. `Send` 버튼을 누르면 채팅방에 메시지를 전송합니다.
+
+<br>
+
+- 코드를 이미 구현했지만 어디에 배치해야 할까요?
+- 이벤트 핸들러? `Effect`?
+- 이와 같은 고민을 할 때마다 **코드를 실행하는 이유**에 대해 고민해야 합니다.
+
+## 특정 인터랙션에 대한 응답으로 이벤트 핸들러 실행
+
+- 유저의 관점에서 메시지를 보내는 것은 특정 `Send` 버튼을 클릭하기 **때문에** 동작합니다.
+- 아무 때나, 아무 이유 없이 메시지를 전송한다면 유저는 엄청 화날 zj겁니다.
+- 메시지 전송이 이벤트 핸들러로 처리되어야 하는 이유입니다.
+- 이벤트 핸들러를 사용하면 클릭 같은 특정 상호 작용을 처리할 수 있습니다.
+
+```js
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+  // ...
+  function handleSendClick() {
+    sendMessage(message);
+  }
+  // ...
+  return (
+    <>
+      <input value={message} onChange={(e) => setMessage(e.target.value)} />
+      <button onClick={handleSendClick}>Send</button>;
+    </>
+  );
+}
+```
+
+<br>
+
+- 이벤트 핸들러를 활용하면 버튼이 눌렸을 때만 `sendMessage`가 실행됩니다.
+
+## Effect는 동기화가 필요할 때마다 실행됩니다.
+
+- 또한 컴포넌트를 채팅방에 연결해야 합니다.
+- 이 코드는 어디로 가는 걸까요?
+  <br><br>
+- 이 코드를 실행하는 이유는 특정 인터랙션을 위한 게 아닙니다.
+- 유저가 채팅방으로 이동한 이유, 방법은 중요하지 않습니다.
+- 이제 채팅방을 살펴보고 상호 작용할 수 있으므로 컴포넌트는 채팅 서버에 연결된 상태를 유지해야 합니다.
+- 채팅방 컴포넌트가 앱의 초기화면이고 유저가 전혀 상호 작용하지 않아도 **여전히** 연결되어 있는 상태여야 합니다.
+- 이것이 `Effect`인 이유입니다.
+
+```js
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+  // ...
+  function handleSendClick() {
+    sendMessage(message);
+  }
+  // ...
+  return (
+    <>
+      <input value={message} onChange={(e) => setMessage(e.target.value)} />
+      <button onClick={handleSendClick}>Send</button>;
+    </>
+  );
+}
+```
+
+<br>
+
+- 이 코드를 사용하면 유저의 특정 인터랙션에 관계 없이, 선택한 채팅 서버에 항상 연결이 활성화 되어있는지 확인할 수 있습니다.
+- 유저가 앱을 열었거나, 다른 채팅방을 선택했거나, 다른 화면으로 이동했다가 뒤로 가기를 누른 경우들에만 `Effect`를 사용하면, 컴포넌트가 현재 선택한 채팅방과 **동기화된** 상태로 유지되고 **필요할 때마다 재연결됩니다.**
+
+```js
+// App.js
+import { useState, useEffect } from 'react';
+import { createConnection, sendMessage } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+
+  function handleSendClick() {
+    sendMessage(message);
+  }
+
+  return (
+    <>
+      <h1>Welcome to the {roomId} room!</h1>
+      <input value={message} onChange={(e) => setMessage(e.target.value)} />
+      <button onClick={handleSendClick}>Send</button>
+    </>
+  );
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value='general'>general</option>
+          <option value='travel'>travel</option>
+          <option value='music'>music</option>
+        </select>
+      </label>
+      <button onClick={() => setShow(!show)}>
+        {show ? 'Close chat' : 'Open chat'}
+      </button>
+      {show && <hr />}
+      {show && <ChatRoom roomId={roomId} />}
+    </>
+  );
+}
+```
+
+```js
+// chat.js
+export function sendMessage(message) {
+  console.log('🔵 You sent: ' + message);
+}
+
+export function createConnection(serverUrl, roomId) {
+  // 서버에 실제로 연결할 수 있는 코드
+  return {
+    connect() {
+      console.log(
+        '✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...'
+      );
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl);
+    },
+  };
+}
+```
+
+## 반응형 값과 반응형 로직
+
+- 직관적으로 버튼을 클릭하면 이벤트 핸들러가 항상 **수동**으로 트리거된다고 생각할 수 있습니다.
+- 반면 `Effect`는 **자동**으로 동작합니다.
+- 동기화 상태를 유지하는데 필요한 만큼 재실행됩니다.
+  <br><br>
+- 더 정확하게 생각하는 방법이 있습니다.
+  <br><br>
+- 컴포넌트 내부에 선언된 `props`, 상태, 변수를 **반응형 값**이라고 부릅니다.
+- 예를 들어 `serverlUrl`은 반응형 값이 아니지만, `roomId`, `message`는 반응형 값입니다.
+- `roomId`, `message`는 렌더링 데이터 흐름에 참여합니다.
+
+```js
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+  // ...
+}
+```
+
+<br>
+
+- 반응형 값은 리렌더링에 의해 변경됩니다.
+- 예를 들어 유저는 `message`를 편집하거나 드롭다운에서 다른 `roomId`를 선택할 수 있습니다.
+- 이벤트 핸들러와 `Effect`는 변경 사항을 대응하는 방식이 다릅니다.
+
+1. **이벤트 핸들러 내부 로직은 반응적이지 않습니다.**
+   - 유저가 동일한 상호 작용을 다시 수행하지 않는 한 실행되지 않습니다.
+   - 이벤트 핸들러는 반응형 값을 읽을 수 있지만, 변경 내용에 **반응**하지는 않습니다.
+2. **`Effect` 내부의 로직은 반응형입니다.**
+   - `Effect`가 반응형 값을 참조한다면 **종속성에 지정해야 합니다.**
+   - 이후 리렌더링이 값을 변경한다면 `React`는 변경된 값으로 `Effect` 로직을 재실행합니다.
+
+## 이벤트 핸들러 내부의 로직은 반응적이지 않습니다.
+
+```js
+// ...
+sendMessage(message);
+// ...
+```
+
+<br>
+
+- 유저의 관점에서 `message`의 변경은 메시지 전송을 의미하는 것이 **아닙니다.**
+- 유저가 타이핑하는 것뿐이죠.
+- 즉 메시지를 보내는 로직은 반응적이지 않습니다.
+- 반응형 값이 변경된다고 해서 다시 실행되어야 하는 건 아닙니다.
+- 이 로직을 이벤트 핸들러 내부에 배치하는 이유입니다.
+
+```js
+function handleSendClick() {
+  sendMessage(message);
+}
+```
+
+<br>
+
+- 이벤트 핸들러는 반응적으로 동작하지 않기에, `sendMessage(message)`는 `Send` 버튼을 클릭할 때만 실행됩니다.
+
+## Effect 내부 로직은 반응적입니다.
+
+```js
+// ...
+const connection = createConnection(serverUrl, roomId);
+connection.connect();
+// ...
+```
+
+<br>
+
+- 유저의 관점에서 `roomId`의 변경은 **다른 채팅방으로의 연결을 의미합니다.**
+- 즉 채팅방에 연결되는 로직은 반응형이어야 합니다.
+- 코드가 반응형 값을 **따라가고**, 값이 다른 경우 다시 실행되도록 하려는 것입니다.
+- 이 로직을 `Effect` 내부에 배치하는 이유입니다.
+
+```js
+useEffect(() => {
+  const connection = createConnection(serverUrl, roomId);
+  connection.connect();
+  return () => {
+    connection.disconnect();
+  };
+}, [roomId]);
+```
+
+<br>
+
+- `Effect`는 반응적이므로 `createConnection(serverUrl, roomId)`, `connection.connect`는 상이한 `roomId` 마다 실행됩니다.
+- `Effect`는 마지막으로 선택된 채팅방과 동기화하는 채팅 연결을 유지합니다.
+
+## Effect 외부로 비반응적인 로직 추출하기
+
+- 반응적인 놀리와 비반응적인 논리를 섞어 사용하고 싶을 때는 조금 까다로워집니다.
+  <br><br>
+- 예를 들어 유저가 채팅방에 연결할 때 알림을 표시한다고 가정해보겠습니다.
+- 올바른 색상으로 알람을 표시할 수 있도록 `props`에서 테마를 받습니다.
+
+```js
+function ChatRoom({ roomId, theme }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      showNOtification('Connected!', theme);
+    });
+  });
+  connection.connect();
+  // ...
+}
+```
+
+<br>
+
+- 그러나 `theme`는 반응적 값이기에, `Effect`에 의해 읽혀지는 **모든 반응형 값은 종속성으로 선언되어야 합니다.**
+- 이제 `Effect`의 종속성으로 `theme`를 지정해야 합니다.
+
+```js
+function ChatRoom({ roomId, theme }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      showNotification('Connected!', theme);
+    });
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId, theme]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- 아래 예제를 사용하여 유저 환경에서 문제를 발견할 수 있는지 확인하세요.
+
+```js
+// App.js
+import { useState, useEffect } from 'react';
+import { createConnection, sendMessage } from './chat.js';
+import { showNotification } from './notifications.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId, theme }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      showNotification('Connected!', theme);
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, theme]);
+
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value='general'>general</option>
+          <option value='travel'>travel</option>
+          <option value='music'>music</option>
+        </select>
+      </label>
+      <label>
+        <input
+          type='checkbox'
+          checked={isDark}
+          onChange={(e) => setIsDark(e.target.checked)}
+        />
+        Use dark theme
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} theme={isDark ? 'dark' : 'light'} />
+    </>
+  );
+}
+```
+
+```js
+// chat.js
+export function createConnection(serverUrl, roomId) {
+  // 서버에 실제로 연결할 수 있는 코드
+  let connectedCallback;
+  let timeout;
+  return {
+    connect() {
+      timeout = setTimeout(() => {
+        if (connectedCallback) {
+          connectedCallback();
+        }
+      }, 100);
+    },
+    on(event, callback) {
+      if (connectedCallback) {
+        throw Error('Cannot add the handler twice.');
+      }
+      if (event !== 'connected') {
+        throw Error('Only "connected" event is supported.');
+      }
+      connectedCallback = callback;
+    },
+    disconnect() {
+      clearTimeout(timeout);
+    },
+  };
+}
+```
+
+```js
+// notification.js
+import Toastify from 'toastify-js';
+import 'toastify-js/src/toastify.css';
+
+export function showNotification(message, theme) {
+  Toastify({
+    text: message,
+    duration: 2000,
+    gravity: 'top',
+    position: 'right',
+    style: {
+      background: theme === 'dark' ? 'black' : 'white',
+      color: theme === 'dark' ? 'white' : 'black',
+    },
+  }).showToast();
+}
+```
+
+<br>
+
+- `roomId`이 변경되면 채팅방은 예상대로 다시 연결됩니다.
+- 하지만 `theme`은 여전히 종속성에 존재하기 때문에, 다크 모드, 라이트 모드를 변경할 때마다 채팅방 **또한** 재연결됩니다.
+- 좋은 방법은 아니죠.
+  <br><br>
+- 즉, 아래 코드가 `Effect` 내부에 있더라도, 반응형 값으로써 사용되면 안 됩ㄴ디ㅏ.
+
+## Effect 이벤트 선언하기
+
+- 아래는 아직 `React`에 추가되지 않은 실험적 API이므로 아직 사용할 수 없는 부분에 대한 설명입니다.
+  <br><br>
+- `Effect` 외부로 `non-React` 로직을 추출하려면 `useEffectEvent` `Hook`을 호출해야 합니다.
+
+```js
+import { useEffect, useEffectEvent } from 'react';
+
+function ChatRoom({ roomId, theme }) {
+  const onConnected = useEffectEvent(() => {
+    showNotification('Connected!', theme);
+  });
+  // ...
+}
+```
+
+<br>
+
+- **`Effect` 이벤트**로 불리는 `onConnected`가 존재합니다.
+- `Effect` 로직의 일부이지만, 이벤트 핸들러처럼 동작합니다.
+- `onConnected`의 로직은 반응형이 아니고, 항상 `props`와 상태의 최신 값을 **확인**합니다.
+  <br><br>
+- `Effect` 내부에서 `onConnected` `Effect` 이벤트를 호출할 수 있습니다.
+
+```js
+function ChatRoom({ roomId, theme }) {
+  const onConnected = useEffectEvent(() => {
+    showNotification('Connected!', theme);
+  });
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      onConnected();
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ All dependencies declared
+  // ...
+}
+```
+
+<br>
+
+- 문제가 해결되었습니다.
+- `Effect`의 종속성 리스트에서 `onConnected`를 **삭제**해야 한다는 것을 주의하세요
+- **`Effect` 이벤트는 반응형이 아니며 종속성에 존재하면 안 됩니다.**
+- 종속성에 추가된 경우 린트 에러가 발생됩니다.
+  <br><br>
+- 새로운 기능은 잘 동작합니다!!
+
+```js
+// App.js
+import { useState, useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+import { createConnection, sendMessage } from './chat.js';
+import { showNotification } from './notifications.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId, theme }) {
+  const onConnected = useEffectEvent(() => {
+    showNotification('Connected!', theme);
+  });
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      onConnected();
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value='general'>general</option>
+          <option value='travel'>travel</option>
+          <option value='music'>music</option>
+        </select>
+      </label>
+      <label>
+        <input
+          type='checkbox'
+          checked={isDark}
+          onChange={(e) => setIsDark(e.target.checked)}
+        />
+        Use dark theme
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} theme={isDark ? 'dark' : 'light'} />
+    </>
+  );
+}
+```
+
+```js
+// chat.js
+export function createConnection(serverUrl, roomId) {
+  // 서버에 실제로 연결할 수 있는 코드
+  let connectedCallback;
+  let timeout;
+  return {
+    connect() {
+      timeout = setTimeout(() => {
+        if (connectedCallback) {
+          connectedCallback();
+        }
+      }, 100);
+    },
+    on(event, callback) {
+      if (connectedCallback) {
+        throw Error('Cannot add the handler twice.');
+      }
+      if (event !== 'connected') {
+        throw Error('Only "connected" event is supported.');
+      }
+      connectedCallback = callback;
+    },
+    disconnect() {
+      clearTimeout(timeout);
+    },
+  };
+}
+```
+
+<br>
+
+- `Effect` 이벤트는 이벤트 핸들러와 굉장히 비슷하다고 느낄 겁니다.
+- 이벤트 핸들러는 유저 인터렉션에 반응한다는 것이고, `Effect` 이벤트는 `Effect`에서 트리거되는 차이점이 존재합니다.
+- `Effect` 이벤트를 사용하면 `Effect`의 반응형 코드와 비반응형 코드를 **구분**하여 사용할 수 있습니다.
+
+## `Effect` 이벤트를 활용하여 최신 props, 상태 참조하기
+
+- 아래는 아직 `React`에 추가되지 않은 실험적 API이므로 아직 사용할 수 없는 부분에 대한 설명입니다.
+  <br><br>
+- `Effect` 이벤트를 사용하면 종속성에 대한 린터 기능을 사용하고 싶지 않다고 느낄 수 있습니다.
+  <br><br>
+- 예를 들어 페이지 방문을 기록하는 `Effect`를 생각해봅시다.
+
+```js
+function Page() {
+  useEffect(() => {
+    logVisit();
+  }, []);
+  // ...
+}
+```
+
+<br>
+
+- 이후 여러 라우트를 추가해봅시다.
+- `Page` 컴포넌트는 `url` `prop`으로 최근 경로를 전달받습니다.
+- `logVisit` 호출의 일부로 `url`을 전달하지만, 종속성 린터는 다음과 같이 에러를 표시합니다.
+
+```js
+function Page({ url }) {
+  useEffect(() => {
+    logVisit(url);
+    // 🔴 useEffect Hook 'url' 종속성을 빠뜨렸습니다.
+  }, []);
+  // ...
+}
+```
+
+<br>
+
+- 코드의 목적에 대해 생각해봅시다.
+- 각 URL은 다른 페이지를 나타내므로 별도의 방문을 기록하해봅시다.
+- 즉 `logVisit`을 호출하는 것은 `url`에 대해 반응적**이어야 합니다.**
+- 린트에 따라 종속성으로 추가하는 것이 합리적인 이유입니다.
+
+```js
+function Page({ url }) {
+  useEffect(() => {
+    logVisit(url);
+  }, [url]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- 이제 모든 페이지를 방문하며 장바구니의 물품 수를 `Page` 컴포넌트에 포함해보겠습니다.
+
+```js
+function Page({ url }) {
+  const { items } = useContext(ShoppingCartContext);
+  const numberOfItems = items.length;
+
+  useEffect(() => {
+    logVisit(url, numberOfItems);
+  }, [url]); // 🔴 useEffect Hook 'numberOfItems'을 종속성에 넣는 것을 빠뜨렸습니다.
+  // ...
+}
+```
+
+<br>
+
+- `Effect` 내부에서 `numberOfItems`를 사용했으므로, 린터는 이를 종속성에 추가하도록 지시합니다.
+- 그러나 `logVisit` 호출이 `numberOfItems`와 관련하여 반응되는 것을 원치 않습니다.
+- 유저가 장바구니에 무언가 추가되어 `numberOfItems`가 변경된 경우, 사용자의 페이지 재방문을 **의미하지는 않습니다.**
+- 즉, **페이지 방문**은 이벤트처럼 여겨질 수 있습니다.
+  <br><br>
+- 코드를 2개 부분으로 나눠 보겠습니다.
+
+```js
+function Page({ url }) {
+  const { items } = useContext(ShoppingCartContext);
+  const numberOfItems = items.length;
+
+  const onVisit = useEffectEvent((visitedUrl) => {
+    logVisit(visitedUrl, numberOfItems);
+  });
+
+  useEffect(() => {
+    onVisit(url);
+  }, [url]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- `onVisit`은 `Effect` 이벤트입니다.
+- `onVisit`의 코드는 반응적이지 않습니다.
+- 따라서 `numberOfItem`를 변경해도 주변 코드의 재실행 걱정 없이 사용할 수 있습니다.
+  <br><br>
+- 반면 `Effect`는 그 자체로 반응형입니다.
+- `Effect`는 `url` `prop`을 사용하므로 다른 `url`로 리렌더링될 때마다 `Effect`가 재실행됩니다.
+  <br><br>
+- 결과적으로 `url`이 변경될 때마다 `logVisit`을 호출할 것이고, 항상 최신 상태의 `numberOfItem`을 참조하게 될 겁니다.
+- 그러나 `numberOfItem` 자체가 변경되면 어떤 코드도 재실행되지 않습니다.
+
+## 주의
+
+- 인수 없이 `onVisit`을 호출했을 때, URL을 읽을 수 있는지 궁금할 수 있습니다.
+
+```js
+const onVisit = useEffectEvent(() => {
+  logVisit(url, numberOfItems);
+});
+
+useEffect(() => {
+  onVisit();
+}, [url]);
+```
+
+<br>
+
+- 위 코드는 잘 동작하나, `Effect` 이벤트에 명시적으로 `url`을 전달하는 것이 더 좋습니다.
+- `Effect` 이벤트에게 `url`을 전달하는 것은, 다른 `url`을 가진 페이지를 방문하는 것이 유저 관점에서는 별도의 **이벤트**를 구성하는 것입니다.
+- `visitedUrl`은 아래와 같은 **이벤트**의 일부입니다.
+
+```js
+const onVisit = useEffectEvent((visitedUrl) => {
+  logVisit(visitedUrl, numberOfItems);
+});
+
+useEffect(() => {
+  onVisit(url);
+}, [url]);
+```
+
+<br>
+
+- `Effect` 이벤트가 `visitedUrl`을 명시적으로 요청하므로, `Effect`의 종속성에서 `visitedUrl`을 제거할 수 없습니다.
+- 종속성에서 `url`을 제거하면 린터는 오류를 발생시킬 겁니다.
+- `url`에 대해 `onVisit`이 반응하는 것을 원하므로, 내부에서 `url`을 읽는 대신 `Effect`**에서** 전달합니다.
+  <br><br>
+- 이는 `Effect` 내부에 비동기 논리가 있는 경우 특히 중요합니다.
+
+```js
+const onVisit = useEffectEvent((visitedUrl) => {
+  logVisit(visitedUrl, numberOfItems);
+});
+
+useEffect(() => {
+  setTimeout(() => {
+    onVisit(url);
+  }, 5000); // 방문 기록에 딜레이 추가
+}, [url]);
+```
+
+<br>
+
+- 위 예제는 `onVisit` 내부의 `url`은 최신 `url`이지만, `visitUrl`은 원래 이 `Effect`를 실행시킨 `url`입니다.
+
+## Deep Dive - 종속성에 대한 린터를 무시해도 되나요?
+
+- 아래와 같이 린트 규칙을 어기는 경우가 존재합니다.
+
+```js
+function Page({ url }) {
+  const { items } = useContext(ShoppingCartContext);
+  const numberOfItems = items.length;
+
+  useEffect(() => {
+    logVisit(url, numberOfItems);
+    // 🔴 린터 규칙을 어기면 안 됩니다.
+  }, [url]);
+  // ...
+}
+```
+
+<br>
+
+- `useEffectEvent`가 `React`의 새 기능으로 추가되면, 이러한 린터 규칙을 어기면 안 됩니다.
+  <br><br>
+- 린터 규칙을 무시했을 때의 단점은 아래와 같습니다.
+
+1. 새로운 반응형 종속성에 대해 `Effect`가 **반응**해야 할 때 더 이상 에러를 표시하지 않는다는 것입니다.
+   - 예를 들어 이전 예제는 `url`을 알려줬기 때문에 종속성에 `url`을 추가했습니다.
+   - 린터를 비활성화하면 해당 `Effect`에 대한 리팩토링에 대해 에러를 표시하지 않습니다.
+   - 버그 발생으로 이어집니다.
+2. `handleMove` 함수는 점이 커서를 따라다니는지 여부를 결정하기 위해 `canMove` 상태 변수를 참조해야 합니다.
+   - 하지만 `handleMove` 내부의 `canMove`는 항상 `true`입니다.
+
+```js
+import { useState, useEffect } from 'react';
+
+export default function App() {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [canMove, setCanMove] = useState(true);
+
+  function handleMove(e) {
+    if (canMove) {
+      setPosition({ x: e.clientX, y: e.clientY });
+    }
+  }
+
+  useEffect(() => {
+    window.addEventListener('pointermove', handleMove);
+    return () => window.removeEventListener('pointermove', handleMove);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <>
+      <label>
+        <input
+          type='checkbox'
+          checked={canMove}
+          onChange={(e) => setCanMove(e.target.checked)}
+        />
+        The dot is allowed to move
+      </label>
+      <hr />
+      <div
+        style={{
+          position: 'absolute',
+          backgroundColor: 'pink',
+          borderRadius: '50%',
+          opacity: 0.6,
+          transform: `translate(${position.x}px, ${position.y}px)`,
+          pointerEvents: 'none',
+          left: -20,
+          top: -20,
+          width: 40,
+          height: 40,
+        }}
+      />
+    </>
+  );
+}
+```
+
+<br>
+
+- 위 코드의 문제는 종속성 린터를 무시하기 때문에 발생합니다.
+- 종속성 린터를 사용하면 `Effect`가 `handleMove` 함수에 따라 달라져야 한다는 것을 알 수 있습니다.
+- `hanldeMove`는 컴포넌트 내부에서 선언되므로 반응형 값입니다.
+- 모든 반응형 값은 종속성으로 지정되어야 합니다.
+  <br><br>
+- 위 코드는 `Effect`가 반응형 값에 의존하지 않는다고 거짓말했습니다.
+- `canMove`가 변경된 후 `Effect`를 동기화하지 않은 이유입니다.
+- `Effect`를 재동기화하지 않았으므로 이벤트 리스너로 연결된 `handleMove`는 초기값만을 가집니다.
+- 첫 렌더링 동안, `canMove`는 `true`였으므로 `handleMove`는 항상 `true` 값을 가진 `canMove`만 사용합니다.
+  <br><br>
+- **린터를 무시하지 않는다면 이전 값을 참조하는 문제가 절대 발생하지 않을 겁니다.**
+  <br><br>
+- `useEffectEvent`를 사용하면 코드가 예상대로 잘 동작합니다.
+
+```js
+import { useState, useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+
+export default function App() {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [canMove, setCanMove] = useState(true);
+
+  const onMove = useEffectEvent((e) => {
+    if (canMove) {
+      setPosition({ x: e.clientX, y: e.clientY });
+    }
+  });
+
+  useEffect(() => {
+    window.addEventListener('pointermove', onMove);
+    return () => window.removeEventListener('pointermove', onMove);
+  }, []);
+
+  return (
+    <>
+      <label>
+        <input
+          type='checkbox'
+          checked={canMove}
+          onChange={(e) => setCanMove(e.target.checked)}
+        />
+        The dot is allowed to move
+      </label>
+      <hr />
+      <div
+        style={{
+          position: 'absolute',
+          backgroundColor: 'pink',
+          borderRadius: '50%',
+          opacity: 0.6,
+          transform: `translate(${position.x}px, ${position.y}px)`,
+          pointerEvents: 'none',
+          left: -20,
+          top: -20,
+          width: 40,
+          height: 40,
+        }}
+      />
+    </>
+  );
+}
+```
+
+<br>
+
+- 하지만 `useEffectEvent`가 은탄환이 되는 것은 아닙니다.
+- 반응적이지 않아야 하는 값에만 적용해야 합니다.
+- 예를 들어 위 예시는 `Effect`가 `canMove`에 대해 반응하는 것을 원하지 않았습니다.
+- 그렇기 때문에 `Effect` 이벤트를 사용하는 것이 합리적이었습니다.
+
+## Effect 이벤트의 한계
+
+- 아래는 아직 `React`에 추가되지 않은 실험적 API이므로 아직 사용할 수 없는 부분에 대한 설명입니다.
+  <br><br>
+- `Effect` 이벤트의 사용 방법은 굉장히 제한적입니다.
+
+1. `Effect` 내부에서만 호출할 수 있습니다.
+2. 절대 다른 컴포넌트나 `Hook`을 전달할 수 없습니다.
+
+<br>
+
+- 예를 들어 아래와 같이 `Effect` 이벤트를 선언하고 전달하면 안 됩니다.
+
+```js
+function Timer() {
+  const [count, setCount] = useState(0);
+
+  const onTick = useEffectEvent(() => {
+    setCount(count + 1);
+  });
+
+  // 🔴  Effect 이벤트를 인수로 전달하기
+  useTimer(onTick, 1000);
+
+  return <h1>{count}</h1>;
+}
+
+function useTimer(callback, delay) {
+  useEffect(() => {
+    const id = setInterval(() => {
+      callback();
+    }, delay);
+    return () => {
+      clearInterval(id);
+    };
+    // 종속성에 'callback'을 지정해야 합니다.
+  }, [delay, callback]);
+}
+```
+
+<br>
+
+- 항상 `Effect` 이벤트를 사용하는 `Effect` 코드 다음에 사용해야 합니다.
+
+```js
+function Timer() {
+  const [count, setCount] = useState(0);
+  useTimer(() => {
+    setCount(count + 1);
+  }, 1000);
+  return <h1>{count}</h1>;
+}
+
+function useTimer(callback, delay) {
+  const onTick = useEffectEvent(() => {
+    callback();
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      // ✅ 굿!: Effect 내부에서만 지역적으로 호출됩니다.
+      onTick();
+    }, delay);
+    return () => {
+      clearInterval(id);
+    };
+    // 종속성에 onTic을 지정할 필요가 없습니다.
+  }, [delay]);
+}
+```
+
+<br>
+
+- `Effect` 이벤트는 `Effect` 코드의 비반응적인 **조각**입니다.
+- `Effect` 이벤트의 위치는 `Effect` 이벤트를 사용하는 `Effect` 코드 다음에 나와야 합니다.
+
+## 요약
+
+- 이벤트 핸들러는 특정 인터랙션에 반응하여 실행됩니다.
+- `Effect`는 동기화가 필요할 때마다 실행됩니다.
+- 이벤트 핸들러의 로직은 비반응형입니다.
+- `Effect`의 로직은 반응형입니다.
+- 비반응 로직을 `Effect` 이벤트로 이동할 수 있습니다.
+- `Effect` 이벤트는 `Effect` 내부에서만 호출해야 합니다.
+- `Effect` 이벤트를 다른 컴포넌트나 `Hook`에 전달하면 안 됩니다.
