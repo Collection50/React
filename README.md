@@ -51,5 +51,5 @@
     - [v] You Might Not Need an Effect
     - [v] Lifecycle of Reactive Effects
     - [v] Separating Events from Effects
-    - [] Removing Effect Dependencies
+    - [x] Removing Effect Dependencies
     - [] Reusing Logic with Custom Hooks

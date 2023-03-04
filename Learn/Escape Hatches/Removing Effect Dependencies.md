@@ -1,0 +1,1310 @@
+# Removing Effect Dependencies
+
+- `Effect`를 사용하면 `Effect`가 참조한 모든 반응형 값이 종속성에 포함되어 있는지 확인합니다.
+- 이렇게 하면 `Effect`가 컴포넌트의 최신 `props` 및 상태와 동기화된 상태로 유지될 수 있습니다.
+- 불필요한 종속성으로 `Effect`가 너무 자주 실행되거나 무한 루프가 발생할 수 있습니다.
+
+## 배우게 될 것
+
+- 무한 `Effect` 종속성 루프를 해결하는 방법
+- 종속성을 제거하는 방법
+- `Effect`에 반응하지 않고 값을 참조하는 방법
+- 객체와 함수의 종속성을 피하는 방법과 이유
+- 종속성 린터를 무시하는 것이 위험한 이유와 대신 수행할 작업
+
+## 종속성은 코드와 일치해야 합니다.
+
+- `Effect`를 작성할 때, 먼저 `Effect`를 **시작하고 중지**하는 방법을 지정합니다.
+
+```js
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  	// ...
+  }
+}
+```
+
+<br>
+
+- 그런 다음 `Effect`의 종속성(`[]`)을 비워두면, 린터가 올바른 종속성을 제안할 겁니다.
+
+```js
+// App.js
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // <-- 이 부분을 해결해야 합니다!
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value='general'>general</option>
+          <option value='travel'>travel</option>
+          <option value='music'>music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+```js
+export function createConnection(serverUrl, roomId) {
+  // 서버에 실제로 연결할 수 있는 코드
+  return {
+    connect() {
+      console.log(
+        '✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...'
+      );
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl);
+    },
+  };
+}
+```
+
+<br>
+
+- 린터에 따라 아래 내용을 작성해보겠습니다.
+
+```js
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- `Effect`는 반응형 값에 **반응**합니다.
+- `roomId`는 반응형 값이므로, 린터는 유저가 이 값을 종속성으로 지정했는지 확인합니다.
+- `roomId`가 다른 값을 수신하는 경우 `React`는 `Effect`를 재동기화합니다.
+- 이는 선택한 채팅방과 연결 상태를 유지하고, 드롭다운에 **반응**하도록 합니다.
+
+```js
+// App.js
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value='general'>general</option>
+          <option value='travel'>travel</option>
+          <option value='music'>music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+```js
+// chat.js
+export function createConnection(serverUrl, roomId) {
+  // 서버에 실제로 연결할 수 있는 코드
+  return {
+    connect() {
+      console.log(
+        '✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...'
+      );
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl);
+    },
+  };
+}
+```
+
+<br>
+
+## 종속성을 제거하려면, 종속성이 아니라는 것을 증명하면 됩니다.
+
+- `Effect`의 종속성은 **선택**할 수 없습니다.
+- `Effect` 코드에서 사용되는 모든 반응형 값은 종속성 리스트에 선언되어야 합니다.
+- `Effect`의 종속성 리스트는 주변 코드에 의해 결정됩니다.
+
+```js
+const serverUrl = 'https://localhost:1234';
+
+// roomId는 반응형 값입니다.
+function ChatRoom({ roomId }) {
+  // 이 Effect는 반응형 값을 참조합니다.
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    value;
+    connection.connect();
+    return () => connection.disconnect();
+    // ✅ Effect 종속성에 반응형 값을 지정해야만 합니다.
+  }, [roomId]);
+  // ...
+}
+```
+
+<br>
+
+- **반응형 값**에는 컴포넌트 내부 변수와 함수가 포함됩니다.
+- `roomId`는 반응형 값이므로 종속성 리스트에서 삭제할 수 없습니다.
+- 린터가 허락하지 않을 겁니다.
+
+```js
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+    // 🔴 useEffect Hook은 roomId 종속성을 빠트렸습니다.
+  }, []);
+  // ...
+}
+```
+
+<br>
+
+- 린터가 옳습니다.
+- `roomId`는 변경될 수 있는 값이므로 코드에 버그가 발생할 수 있습니다.
+  <br><br>
+- 종속성을 제거하려면, 종속성이 필요하지 않음을 린터에 **증명**해야 합니다.
+- 예를 들어 `roomId`를 컴포넌트 밖으로 이동하여 렌더링에 반응하는 값이 아님을 증명할 수 있습니다.
+
+```js
+const serverUrl = 'https://localhost:1234';
+const roomId = 'music'; // 반응형 값이 아닙니다.
+
+function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- 이제 `roomId`는 반응형 값이 아니기에, 종속성에 지정될 필요가 없습니다.
+
+```js
+// App.js
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+const roomId = 'music';
+
+export default function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []);
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+```
+
+```js
+// chat.js
+export function createConnection(serverUrl, roomId) {
+  // 서버에 실제로 연결할 수 있는 코드
+  return {
+    connect() {
+      console.log(
+        '✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...'
+      );
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl);
+    },
+  };
+}
+```
+
+<br>
+
+- 이제 비어있는 종속성 리스트를 사용할 수 있습니다.
+- `Effect`는 반응형 값에 **의존하지 않으므로** `props` 혹은 상태가 변경될 때 재실행 할 필요가 없습니다.
+
+## 종속성을 변경하려면 코드를 변경합니다.
+
+- 아래와 같은 패턴이 존재합니다.
+
+1. `Effect` **코드를 변경**하거나, 반응형 값의 선언 방법을 변경합니다.
+2. 린터가 제안하는 코드와 종속성을 조정합니다.
+3. 종속성 리스트가 별로라면, **다시 1번으로** 돌아갑니다.
+
+<br>
+
+- 마지막 부분이 제일 중요합니다.
+- **종속성을 변경하려면, 주변의 코드부터 변경해야 합니다.**
+- 의도적으로 종속성 리스트에 무엇을 넣을지 **선택하지** 않습니다.
+- 종속성 리스트는 코드를 설명합니다.
+- 따라서 종속성 리스트를 변경하려면 코드를 변경해야 합니다.
+  <br><br>
+- 방정식을 푸는 것처럼 느껴질 겁니다.
+- 예를 들어 종속성 제거와 같은 목표로 시작할 수 있으며, 목표와 일치하는 정확한 코드를 **찾을** 필요가 있습니다.
+
+### 함정
+
+- 기존 코드베이스가 존재하는 경우, 아래처럼 린터를 억제하는 `Effect`가 존재할 수 있습니다.
+
+```js
+useEffect(() => {
+  // ...
+  // 🔴 린터를 억제하면 안 됩니다.
+  // eslint-ignore-next-line react-hooks/exhaustive-dependencies
+}, []);
+```
+
+<br>
+
+- 종속성이 코드와 일치하지 않을 경우 버그 발생 위험이 증가합니다.
+- 린터를 억제하면, `Effect`가 의존하는 값을 다룰 때 `React`에게 **혼란**을 줄 수 있습니다.
+
+## Deep Dive - 종속성 린터를 억제하는 것은 왜 위험할까?
+
+- 린터를 억제하면 고치기 어려운 버그가 발생합니다.
+
+```js
+import { useState, useEffect } from 'react';
+
+export default function Timer() {
+  const [count, setCount] = useState(0);
+  const [increment, setIncrement] = useState(1);
+
+  function onTick() {
+    setCount(count + increment);
+  }
+
+  useEffect(() => {
+    const id = setInterval(onTick, 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <>
+      <h1>
+        Counter: {count}
+        <button onClick={() => setCount(0)}>Reset</button>
+      </h1>
+      <hr />
+      <p>
+        Every second, increment by:
+        <button
+          disabled={increment === 0}
+          onClick={() => {
+            setIncrement((i) => i - 1);
+          }}
+        >
+          –
+        </button>
+        <b>{increment}</b>
+        <button
+          onClick={() => {
+            setIncrement((i) => i + 1);
+          }}
+        >
+          +
+        </button>
+      </p>
+    </>
+  );
+}
+```
+
+<br>
+
+- 예를 들어, **마운트 할 때만** `Effect`를 실행한다고 해봅시다.
+- `Effect`가 **빈** 종속성 배열을 참조하므로 린터를 무시하고 종속성에 강제로 지정했습니다.
+  <br><br>
+- 위 카운터는 2개 버튼을 활용하여 매초마다 증가해야 합니다.
+- 하지만 `Effect`가 어떠한 것에도 의존하지 않는다고 `React`에게 **혼란**을 주었기 때문에, `React`는 초기 렌더링의 `onTick` 함수를 계속 사용합니다.
+- **첫 렌더링에서** `count`는 `0`이고 `increment`는 `1`입니다.
+- 이는 첫 렌더링의 `onTick`이 매초마다 `setCount(0 + 1)`을 호출하고 항상 `1`을 보여주는 이유입니다.
+- 이와 같은 버그는 여러 컴포넌트에 분산되어 있을 때 수정하기 굉장히 어렵습니다.
+  <br><br>
+- 이를 수정하려면 `onTick`을 종속성 리스트에 추가해야 합니다. (`interval`이 1번만 설정되도록 하려면, **`onTick`을 `Effect` 이벤트로 설정해야 합니다.**)
+  <br><br>
+- **종속성 린터 오류는 컴파일 오류로 처리하는 것을 권장합니다.**
+- **린터를 잘 동작시킨다면, 이러한 버그를 마주칠 일이 없습니다.**
+
+## 불필요한 종속성 제거하기
+
+- 코드를 반영하기 위해 `Effect`를 변경할 때마다 종속성 목록을 확인합니다.
+- 종속성 중 1개가 변경될 때 `Effect`가 재실행되는 것이 효율적인가요?
+- 아래의 경우에서의 대답은 **아니오**입니다.
+
+1. 다른 조건에서 `Effect`의 **다른 부분**을 재실행하고 싶을 때가 있습니다.
+2. 일부 종속성의 변경 사항에 **반응**하지 않고 최신 값만 참조하고 싶을 때가 있습니다.
+3. 종속성은 객체나 함수이기에, **의도치 않게** 너무 자주 변경될 수 있습니다.
+   <br><br>
+
+- 올바르게 해결하려면 `Effect`의 몇 가지 질문에 답해야 합니다.
+
+## 이 코드가 이벤트 핸들러로 이동해야 하나요?
+
+- 가장 먼저 생각해야 할 것은 이 코드가 `Effect`여야 하는지 확인해야 합니다.
+  <br><br>
+- `form` 태그를 생각해볼까요?
+- 제출할 때 `submitted`상태 변수를 `true`로 설정합니다.
+- `POST` 요청을 전송하고 알림을 표시해야 합니다.
+- `submitted`가 `true`로 변할 때 **반응**하는 `Effect` 내부에 위 로직을 추가하기로 결정했습니다.
+
+```js
+function Form() {
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (submitted) {
+      // 🔴 지양하세요: 특정 이벤트의 로직이 Effect 내부에 있는 것
+      post('/api/register');
+      showNotification('Successfully registered!');
+    }
+  }, [submitted]);
+
+  function handleSubmit() {
+    setSubmitted(true);
+  }
+
+  // ...
+}
+```
+
+<br>
+
+- 이후 현재 테마에 따라 알림 메시지의 스타일을 지정할 수 있습니다.
+- `theme`는 컴포넌트 본문에 선언되므로 반응형 값입니다.
+- 따라서 종속성으로 지정되어야 합니다.
+
+```js
+function Form() {
+  const [submitted, setSubmitted] = useState(false);
+  const theme = useContext(ThemeContext);
+
+  useEffect(() => {
+    if (submitted) {
+      // 🔴 지양하세요: 특정 이벤트의 로직이 Effect 내부에 있는 것
+      post('/api/register');
+      showNotification('Successfully registered!', theme);
+    }
+    // ✅ 모든 종속성이 지정되었습니다.
+  }, [submitted, theme]);
+
+  function handleSubmit() {
+    setSubmitted(true);
+  }
+
+  // ...
+}
+```
+
+<br>
+
+- 하지만 이렇게 변경하는 것은 버그를 추가한 것과 같습니다.
+- 먼저 `form`을 제출한 다음 다크/라이트 모드를 전환한다고 가정해볼까요?
+- `theme`가 변경되고, `Effect`가 재실행되므로 동일한 알림이 다시 표시됩니다!!
+  <br><br>
+- 문제는 애초에 위 로직이 `Effect`로 작성되면 안 된다는 점입니다.
+- `POST` 요청을 보내고 특정 인터랙션인 **`form` 제출**에 대한 응답을 표시하는 작업입니다.
+- 특정 인터랙션에 대한 코드를 실행하려면 이벤트 핸들러를 사용합니다.
+
+```js
+function Form() {
+  const theme = useContext(ThemeContext);
+
+  function handleSubmit() {
+    // ✅ 굿!: 특정 이벤트의 로직는 이벤트 핸들러에서 호출되었습니다.
+    post('/api/register');
+    showNotification('Successfully registered!', theme);
+  }
+
+  // ...
+}
+```
+
+<br>
+
+- 코드가 이벤트 핸들러 내부에 존재하므로 유저가 `form`을 제출할 때만 코드가 실행됩니다.
+
+## Effect가 관련이 없는 동작을 수행하나요?
+
+- 스스로에게 물어봐야 할 질문은 `Effect`가 관련 없는 동작을 수행하는지의 여부입니다.
+  <br><br>
+- 유저가 도시와 지역을 선택해야 하는 배송 양식을 작성한다고 가정 해보겠습니다.
+- 선택한 `country`에 따라 서버는 도시 목록을 가져와 드롭다운 옵션으로 표시해야 합니다.
+
+```js
+function ShippingForm({ country }) {
+  const [cities, setCities] = useState(null);
+  const [city, setCity] = useState(null);
+
+  useEffect(() => {
+    let ignore = false;
+    fetch(`/api/cities?country=${country}`)
+      .then(response => response.json())
+      .then(json => {
+        if (!ignore) {
+          setCities(json);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [country]); // ✅ 모든 종속성이 지정되었습니다.
+
+  // ...
+```
+
+<br><br>
+
+- 위 코드는 `Effect` 내부에서 데이터를 페치하는 좋은 예시입니다.
+- `country` `prop`에 따라 네트워크와 `cities` 상태를 동기화하고 있습니다.
+- 배송 양식이 표시되는 즉시, 그리고 국가가 변경될 때마다 도시를 가져와야 하기 때문에 이벤트 핸들러에서는 이 작업을 수행할 수 없습니다.
+  <br><br>
+- 이제 도시의 지역에 대한 2번째 드롭다운 메뉴를 추가해봅시다.
+- 이 드롭다운은 선택된 `city`의 `areas`을 가져옵니다.
+- 동일한 `Effect` 내부의 지역 목록에서 2번째 `fetch`를 호출하는 것으로 시작합니다.
+
+```js
+
+function ShippingForm({ country }) {
+  const [cities, setCities] = useState(null);
+  const [city, setCity] = useState(null);
+  const [areas, setAreas] = useState(null);
+
+  useEffect(() => {
+    let ignore = false;
+    fetch(`/api/cities?country=${country}`)
+      .then(response => response.json())
+      .then(json => {
+        if (!ignore) {
+          setCities(json);
+        }
+      });
+    // 🔴하지마세요: 1개의 Effect가 2개의 독립된 프로세스를 동기화하면 안 됩니다.
+    if (city) {
+      fetch(`/api/areas?city=${city}`)
+        .then(response => response.json())
+        .then(json => {
+          if (!ignore) {
+            setAreas(json);
+          }
+        });
+    }
+    return () => {
+      ignore = true;
+    };
+  }, [country, city]); // ✅ 모든 종속성이 지정되었습니다.
+
+  // ...
+```
+
+<br>
+
+- 그러나 이제 `Effect`에 `city` 상태 변수가 사용되므로 종속성 목록에 `city`를 추가해야 합니다.
+- 이는 결과적으로 오류를 발생시킵니다.
+- 이제 사용자가 다른 도시를 선택할 때마다 `Effect`가 다시 실행되어 `fetchCities(country)`를 호출합니다.
+- 따라서 불필요하게 여러 번 도시 목록을 다시 페치합니다.
+  <br><br>
+- **이 코드의 문제는 서로 관련이 없는 2가지를 동기화하는 것입니다.**
+
+1. `country` `prop`을 기반으로 `cities` 상태를 네트워크에 동기화하려고 합니다.
+2. `city` 상태를 기반으로 `areas` 상태를 네트워크에 동기화하려고 합니다.
+   <br><br>
+
+- 로직을 2개의 `Effect`로 분리합니다.
+- 각 `Effect`는 동기화해야 하는 `prop`에 반응합니다.
+
+```js
+function ShippingForm({ country }) {
+  const [cities, setCities] = useState(null);
+  useEffect(() => {
+    let ignore = false;
+    fetch(`/api/cities?country=${country}`)
+      .then(response => response.json())
+      .then(json => {
+        if (!ignore) {
+          setCities(json);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [country]); // ✅ 모든 종속성이 지정되었습니다.
+
+  const [city, setCity] = useState(null);
+  const [areas, setAreas] = useState(null);
+  useEffect(() => {
+    if (city) {
+      let ignore = false;
+      fetch(`/api/areas?city=${city}`)
+        .then(response => response.json())
+        .then(json => {
+          if (!ignore) {
+            setAreas(json);
+          }
+        });
+      return () => {
+        ignore = true;
+      };
+    }
+  }, [city]); // ✅ 모든 종속성이 지정되었습니다.
+
+  // ...
+```
+
+<br>
+
+- 이제 1번째 `Effect`는 `country`가 변경될 때마다 재실행되고, 2번째 `Effect`는 `city`가 변경될 대마다 재실행됩니다.
+- 목적에 따라 코드를 분리했습니다.
+- 2가지는 목적이 다르므로 개별적인 `Effect`에 의해 동기화됩니다.
+- 2개로 분리된 `Effect`는 서로 다른 종속성 리스트를 가지고 있으므로 서로를 불필요하게 트리거하지 않습니다.
+  <br><br>
+- 최종 코드는 원본 코드보다 길지만 Effect를 분할하는 것은 올바른 방식입니다.
+- **각 `Effect`는 독립적인 동기화 프로세스를 나타냅니다.**
+- 이 예제에서는 1개 `Effect`를 삭제해도 다른 `Effect`의 로직이 깨지지 않습니다.
+- 이는 서로 다른 것들을 동기화한다는 좋은 표시이며, 이를 나누는 것이 합리적입니다.
+- 중복된 코드를 보기 싫은 경우 반복적인 로직을 커스텀 `Hook`을 추출하여 이 코드를 개선할 수 있습니다.
+
+## 다음 단계의 상태를 계산하기 위해 어떤 상태를 참조하고 있나요?
+
+- 아래 `Effect`는 새 메시지가 도착할 때마다 새로 생성된 배열로 `message` 상태 변수를 업데이트합니다.
+
+```js
+function ChatRoom({ roomId }) {
+  const [messages, setMessages] = useState([]);
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      setMessages([...messages, receivedMessage]);
+    });
+    // ...
+  });
+}
+```
+
+<br>
+
+- `message` 변수를 사용하여 모든 기존 메시지로 시작하는 **새 배열을 만들고** 마지막에 새 메시지를 추가합니다.
+- 그러나 `messages`는 `Effect`에서 읽은 반응형 값이므로 종속성이어야 합니다.
+
+```js
+function ChatRoom({ roomId }) {
+  const [messages, setMessages] = useState([]);
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      setMessages([...messages, receivedMessage]);
+    });
+    return () => connection.disconnect();
+  }, [roomId, messages]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- 그리고 `messages`를 종속성에 추가하는 것은 오류를 발생시킵니다.
+  <br><br>
+- `messages`를 수신할 때마다 `setMessages`를 사용하면 컴포넌트가 수신된 메시지를 포함하는 새 메시지 배열로 렌더링됩니다.
+- 그러나 이제 `Effect`는 `messages`에 따라 달라지므로 `Effect`도 다시 동기화됩니다.
+- 유저는 그것을 좋아하지 않을 겁니다.
+  <br><br>
+- 이 문제를 해결하려면 `Effect` 내부의 `messages`를 읽지 마십시오.
+- 대신 업데이트 함수를 `setMessages`에 전달합니다.
+
+```js
+function ChatRoom({ roomId }) {
+  const [messages, setMessages] = useState([]);
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      setMessages((msgs) => [...msgs, receivedMessage]);
+    });
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- 이제 `Effect`가 `messages` 변수를 참조하지 않습니다.
+- `msgs => [...msgs, recievedMessage]`와 같은 업데이트 함수만 전달하면 됩니다.
+- `React`는 **업데이트 함수를 대기열에 넣고** 다음 렌더링 중에 `msgs` 인수를 제공합니다.
+- 이것이 `Effect` 자체가 더 이상 `messages`에 의존할 필요가 없는 이유입니다.
+- 이 문제가 해결되면 채팅 메시지를 수신해도 불필요하게 채팅방에 다시 연결되지 않습니다.
+
+## 변경 사항에 반응하지 않고 값을 **참조**하고 싶다면 어떻게 해야 할까요?
+
+- 이 섹션은 아직 `React`에 추가되지 않았기 때문에 아직 사용할 수 없는 실험적 API입니다.
+  <br><br>
+- `isMuted`가 `true`가 아닌 경우, 유저가 새 메시지를 받았을 때 소리를 재생한다고 가정하겠습니다.
+
+```js
+function ChatRoom({ roomId }) {
+  const [messages, setMessages] = useState([]);
+  const [isMuted, setIsMuted] = useState(false);
+
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      setMessages((msgs) => [...msgs, receivedMessage]);
+      if (!isMuted) {
+        playSound();
+      }
+    });
+    // ...
+  });
+}
+```
+
+<br>
+
+- 이제 `Effect`가 코드에서 `isMuted`를 사용하므로 종속성에 추가해야 합니다.
+
+```js
+function ChatRoom({ roomId }) {
+  const [messages, setMessages] = useState([]);
+  const [isMuted, setIsMuted] = useState(false);
+
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      setMessages((msgs) => [...msgs, receivedMessage]);
+      if (!isMuted) {
+        playSound();
+      }
+    });
+    return () => connection.disconnect();
+  }, [roomId, isMuted]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- 문제는 `isMuted`가 변경될 대마다 `Effect`는 재동기화되고 채팅 서버에 다시 연결된다는 점입니다.
+- 이는 원하는 UX가 아닙니다.
+  <br><br>
+- 이 문제를 해결하려면 `Effect`에서 반응하면 안 되는 로직을 추출해야 합니다.
+- 이 `Effect`가 `isMuted`의 변경에 의해 **반응**하지 않도록 해야 합니다.
+- 비반응형 로직을 `Effect` 이벤트로 옮겨야 합니다.
+
+```js
+import { useState, useEffect, useEffectEvent } from 'react';
+
+function ChatRoom({ roomId }) {
+  const [messages, setMessages] = useState([]);
+  const [isMuted, setIsMuted] = useState(false);
+
+  const onMessage = useEffectEvent((receivedMessage) => {
+    setMessages((msgs) => [...msgs, receivedMessage]);
+    if (!isMuted) {
+      playSound();
+    }
+  });
+
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      onMessage(receivedMessage);
+    });
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- `Effect` 이벤트를 사용하면 `Effect`를 반응형 부분과 비반응형 부분으로 분리할 수 있습니다.
+- **이제 `Effect` 이벤트 내부의 `isMuted` 상태를 읽었으므로 `Effect` 종속될 필요가 없습니다.**
+- 결과적으로 `Muted` 버튼을 클릭할 때마다 채팅방은 재연결되지 않습니다.
+
+### props에서 이벤트 핸들러 래핑하기
+
+- 컴포넌트가 이벤트 핸들러를 `props`로 받을 때 유사한 문제가 발생할 수 있습니다.
+
+```js
+function ChatRoom({ roomId, onReceiveMessage }) {
+  const [messages, setMessages] = useState([]);
+
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      onReceiveMessage(receivedMessage);
+    });
+    return () => connection.disconnect();
+  }, [roomId, onReceiveMessage]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- 렌더링 될 때마다 상위 컴포넌트가 상이한 `onRecieveMessage` 함수를 전달한다고 가정해보겠습니다.
+
+```js
+<ChatRoom
+  roomId={roomId}
+  onReceiveMessage={(receivedMessage) => {
+    // ...
+  }}
+/>
+```
+
+<br>
+
+- `onRecieveMessage`가 `Effect`의 종속성에 포함되므로, 상위 컴포넌트가 다시 렌더링될 때마다 `Effect`가 재동기화됩니다.
+- 이렇게 하면 채팅방에 다시 연결됩니다.
+- 이 문제를 해결하려면 `Effect` 이벤트의 호출을 래핑합니다.
+
+```js
+function ChatRoom({ roomId, onReceiveMessage }) {
+  const [messages, setMessages] = useState([]);
+
+  const onMessage = useEffectEvent((receivedMessage) => {
+    onReceiveMessage(receivedMessage);
+  });
+
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      onMessage(receivedMessage);
+    });
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- `Effect` 이벤트는 비반응형이므로 종속성에 지정할 필요가 없습니다.
+- 결과적으로 렌더링 될 때마다 상위 컴포넌트가 상이한 함수를 전달하여도 채팅방은 다시 연결되지 않습니다.
+
+### 반응형 코드와 비반응형 코드 구분
+
+- 아래 예제에는 `roomId`가 변경될 때마다 방문 여부를 기록하려고 합니다.
+- 모든 로그에 현재의 `notificationCount`를 포함하고 싶지만 `notificationCount`를 변경하여 로그 이벤트를 트리거하고 싶지는 않을 겁니다.
+  <br><br>
+- 해결 방법은 비반응 코드를 `Effect` 이벤트로 다시 분할하는 것입니다.
+
+```js
+function Chat({ roomId, notificationCount }) {
+  const onVisit = useEffectEvent((visitedRoomId) => {
+    logVisit(visitedRoomId, notificationCount);
+  });
+
+  useEffect(() => {
+    onVisit(roomId);
+  }, [roomId]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- `roomId`와 관련된 로직이 반응형이기를 원하므로 `Effect` 내부의 `roomId`를 읽습니다.
+- 그러나 추가적인 방문 여부를 기록하기 위해 `notificationCount`로 변경하는 것을 원하지 않으므로 `Effect` 이벤트 내부의 `notificationCount`을 참조해야 합니다.
+
+## 일부 반응형 값이 의도치 않게 변경되는 경우엔 어떻게 할까요?
+
+- 때로는 `Effect`가 특정 값에 **반응**하기 원하지만, 그 값이 원하는 것보다 더 자주 변경되므로 유저 관점에서 실제 변경 사항을 반영하지 못할 수도 있습니다.
+- 예를 들어 컴포넌트 본문에 `options` 객체를 만든 다음 `Effect` 내부에서 해당 객체를 참조했다고 가정하겠습니다.
+
+```js
+function ChatRoom({ roomId }) {
+  // ...
+  const options = {
+    serverUrl: serverUrl,
+    roomId: roomId,
+  };
+
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    // ...
+  });
+}
+```
+
+<br>
+
+- 이 객체는 컴포넌트 본문에 선언되었으므로 반응형 값입니다.
+- `Effect`에서 반응형 값을 참조하면 종속성에 지정해야 합니다.
+- 이는 값이 변경될 때마다 `Effect`의 **반응**을 보장합니다.
+
+```js
+// ...
+useEffect(() => {
+  const connection = createConnection(options);
+  connection.connect();
+  return () => connection.disconnect();
+}, [options]); // ✅ 모든 종속성이 지정되었습니다.
+// ...
+```
+
+<br>
+
+- 종속성으로 선언하는 것은 굉장히 중요합니다.
+- 예를 들어 `roomId`가 변경될 경우 `Effect`가 새 `options`와 함께 새로운 채팅방에 다시 연결됩니다.
+- 그러나 여전히 문제가 존재합니다.
+
+```js
+// App.js
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  const options = {
+    serverUrl: serverUrl,
+    roomId: roomId,
+  };
+
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [options]);
+
+  return (
+    <>
+      <h1>Welcome to the {roomId} room!</h1>
+      <input value={message} onChange={(e) => setMessage(e.target.value)} />
+    </>
+  );
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value='general'>general</option>
+          <option value='travel'>travel</option>
+          <option value='music'>music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+```js
+// chat.js
+export function createConnection({ serverUrl, roomId }) {
+  // 서버에 실제로 연결할 수 있는 코드
+  return {
+    connect() {
+      console.log(
+        '✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...'
+      );
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl);
+    },
+  };
+}
+```
+
+- 위 코드 샌드박스에서 입력 필드는 `message` 상태 변수만 업데이트합니다.
+- 유저의 관점에서 이는 채팅방 연결에 영향을 미치면 안 됩니다.
+- 하지만 `message`를 업데이트할 때마다 컴포넌트는 리렌더링됩니다.
+- 컴포넌트가 리렌더링될 때마다 컴포넌트의 코드는 처음부터 다시 실행됩니다.
+  <br><br>
+- `ChatRoom` 컴포넌트를 리렌더링할 때마다 새로운 `options` 객체가 생성됩니다.
+- `React`는 이전 렌더링에서 생성된 `options` 객체와 방금 생성된 `options` 객체를 **다른** 것으로 간주합니다.
+- 이것이 `options`에 따라 `Effect`가 재동기화되는 이유이고 채팅방이 재연결되는 이유입니다.
+  <br><br>
+- **이 문제는 특히 객체와 함수에 영향을 끼칩니다.**
+- **`JS`에서 새롭게 생성된 객체와 함수는 모두 개별적인 것으로 간주됩니다.**
+- **내용물이 전부 똑같더라도 말이죠.**
+
+```js
+// 첫 렌더링 중..
+const options1 = { serverUrl: 'https://localhost:1234', roomId: 'music' };
+
+// 다음 렌더링 중..
+const options2 = { serverUrl: 'https://localhost:1234', roomId: 'music' };
+
+// 2개의 객체는 서로 다른 객체입니다.
+console.log(Object.is(options1, options2)); // false
+```
+
+<br>
+
+- **객체와 함수의 종속성은 `Effect`가 필요 이상으로 재동기화될 위험을 야기합니다.**
+  <br><br>
+- 이는 가능한 객체와 함수를 `Effect`의 종속성으로 지정하지 않도록 해야 하는 이유입니다.
+- 대신 컴포넌트 외부 혹은 `Effect` 내부로 이동하거나 원시 타입 값을 추출해야 합니다.
+
+### 정적 객체 및 함수를 컴포넌트 외부로 이동합니다.
+
+- 객체가 어떤 `props`나 상태에 종속되지 않는 경우 해당 객체를 컴포넌트 외부로 이동시킬 수 있습니다.
+
+```js
+const options = {
+  serverUrl: 'https://localhost:1234',
+  roomId: 'music',
+};
+
+function ChatRoom() {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- 이 방법은 반응형 값이 아니라는 것을 **증명**하는 겁니다.
+- 리렌더링에 의해 변경될 수 없으므로 `Effect`에 종속될 필요가 없습니다.
+- 이제 `ChatRoom`을 리렌더링해도 `Effect`가 재동기화되지 않습니다.
+
+```js
+function createOptions() {
+  return {
+    serverUrl: 'https://localhost:1234',
+    roomId: 'music',
+  };
+}
+
+function ChatRoom() {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const options = createOptions();
+    const connection = createConnection();
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- `createOptions`는 컴포넌트 외부에서 선언되므로 반응형 값이 아닙니다.
+- 따라서 `Effect` 종속성에 지정할 필요가 없으며 `Effect`가 재동기화되지 않스빈다.
+
+### Effect 내부에서 동적으로 객체 및 함수 이동하기
+
+- 만약 객체가 `roomId` `props` 같이 리렌더링에 의해 변경되는 반응형 값에 의존한다면, 이를 컴포넌트 밖으로 끌어낼 수 없습니다.
+- 그러나 `Effect` 코드 **안으로** 이동하는 방법은 존재합니다.
+
+```js
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+```
+
+<br>
+
+- 이제 `options`는 `Effect` 내부에 선언되었기 때문에 더이상 `Effect`의 종속성이 아닙니다.
+- `Effect`에서 사용되는 반응형 값은 `roomId`뿐입니다.
+- `roomId`는 객체나 함수가 아니기에, **의도치않게** 달라지지 않을 것이라고 확신할 수 있습니다.
+
+```js
+// 첫 렌더링 중..
+const roomId1 = 'music';
+
+// 다음 렌더링 중..
+const roomId2 = 'music';
+
+// 2개의 문자열은 서로 일치합니다.
+console.log(Object.is(roomId1, roomId2)); // true
+```
+
+<br>
+
+- 이를 수정했기에, 입력 필드를 변경해도 채팅방에 재연결되지 않습니다.
+
+```js
+// App.js
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId,
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+
+  return (
+    <>
+      <h1>Welcome to the {roomId} room!</h1>
+      <input value={message} onChange={(e) => setMessage(e.target.value)} />
+    </>
+  );
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value='general'>general</option>
+          <option value='travel'>travel</option>
+          <option value='music'>music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+```js
+export function createConnection({ serverUrl, roomId }) {
+  // 서버에 실제로 연결할 수 있는 코드
+  return {
+    connect() {
+      console.log(
+        '✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...'
+      );
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl);
+    },
+  };
+}
+```
+
+<br>
+
+- 그러나 예상대로 `roomId` 드롭다운을 변경하면 다시 연결됩니다.
+
+```js
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    function createOptions() {
+      return {
+        serverUrl: serverUrl,
+        roomId: roomId,
+      };
+    }
+
+    const options = createOptions();
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- 함수를 작성하여 `Effect` 내부의 로직을 그룹핑할 수 있습니다.
+- 함수를 `Effect` 내부에 선언하는 한, 반응형 값이 아니기에 `Effect`의 종속성으로 지정할 필요가 없습니다.
+
+### 객체에서 원시 값 참조하기
+
+- 가끔 `props`으로부터 객체를 전달받는 경우가 존재합니다.
+
+```js
+function ChatRoom({ options }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [options]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+<br>
+
+- 문제가 발생할 여지가 있는 부분은 상위 컴포넌트가 객체를 생성하는 것입니다.
+
+```js
+<ChatRoom
+  roomId={roomId}
+  options={{
+    serverUrl: serverUrl,
+    roomId: roomId,
+  }}
+/>
+```
+
+<br>
+
+- 이렇게 하면 상위 컴포넌트가 리렌더링될 때마다 `Effect`가 재연결됩니다.
+- 이를 해결하기 위해선 `Effect` **외부** 객체에서 모든 정보를 읽고, 종속성에 객체 및 함수를 지정하면 안 됩니다.
+
+```js
+function ChatRoom({ options }) {
+  const [message, setMessage] = useState('');
+
+  const { roomId, serverUrl } = options;
+  useEffect(() => {
+    const connection = createConnection({
+      roomId: roomId,
+      serverUrl: serverUrl,
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+}
+```
+
+- 로직이 반복되는 것처럼 보입니다.
+- 그러나 `Effect`가 어떤 정보에 의존하는지는 매우 분명해졌습니다.
+- 객체가 상위 컴포넌트에 의해 의도치않게 다시 생성되더라도 채팅방은 재연결되지 않습니다.
+- 하지만 `options.roomId` 혹은 `options.serverUrl`이 실제로 변경된다면, 예상하듯이 채팅방은 재연결될 것입니다.
+
+### 함수에서 원시 값 계산하기
+
+- 함수에도 동일한 접근 방식을 사용할 수 있습니다.
+- 예를 들어 상위 컴포넌트가 아래 함수를 전달한다고 가정하겠습니다.
+
+```js
+<ChatRoom
+  roomId={roomId}
+  getOptions={() => {
+    return {
+      serverUrl: serverUrl,
+      roomId: roomId,
+    };
+  }}
+/>
+```
+
+<br>
+
+- 종속성에 지정되는 것을 방지하려면, `Effect` 외부에서 호출해야 합니다.
+- 이는 객체 형태가 아닌 `roomId`, `serverUrl` 값을 전달하기에 `Effect` 내부에서 참조할 수 있습니다.
+
+```js
+function ChatRoom({ getOptions }) {
+  const [message, setMessage] = useState('');
+
+  const { roomId, serverUrl } = getOptions();
+  useEffect(() => {
+    const connection = createConnection({
+      roomId: roomId,
+      serverUrl: serverUrl
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]); // ✅ 모든 종속성이 지정되었습니다.
+  // ...
+```
+
+<br>
+
+- 이는 렌더링 도중에 호출하는 것이 안전하기에, 순수 함수일 때만 동작합니다.
+- 함수가 이벤트 핸들러이고 `Effect`가 재동기화할 때 함수를 변경하고 싶지 않다면, `Effect` 이벤트로 래핑해야 합니다.
+
+## 요약
+
+- 종속성은 항상 코드와 일치해야 합니다.
+- 종속성이 마음에 들지 않을 때는 코드를 편집해야 합니다.
+- 린터를 무시하는 것은 매우 혼란스러운 버그가 발생합니다.
+- 종속성을 제거하려면 필요하지 않다는 것을 린터에 **증명**해야 합니다.
+- `Effect` 코드가 특정 인터랙션에 대한 응답으로 실행되어야 하는 경우 해당 코드를 이벤트 핸들러로 이동하십시오.
+- 여러 가지 이유로 `Effect`의 다른 부분을 다시 실행해야 하는 경우 여러 `Effect`로 분할하십시오.
+- 이전 상태를 기반으로 일부 상태를 업데이트하려면 업데이트 함수를 전달하십시오.
+- **반응**하지 않고 최신 값을 읽으려면 `Effect`에서 `Effect` 이벤트를 추출하십시오.
+- `JS`에서 객체와 함수는 다른 시간에 생성된 경우 서로 다른 것으로 간주됩니다.
+- 객체와 함수를 종속성에 지정하면 안 됩니다.
+  - 구성 요소 외부 또는 효과 내부로 이동하십시오.
