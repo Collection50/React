@@ -19,37 +19,37 @@
 ## 진행 상황
 
 - `Learn` 부분
-  - [v] `Describing the UI`
-    - [v] Your First Component
-    - [v] Importing and Exporting Components
-    - [v] Writing Markup with JSX
-    - [v] JavaScript in JSX with Curly Braces
-    - [v] Passing Props to a Component
-    - [v] Conditional Rendering
-    - [v] Rendering Lists
-    - [v] Keeping Components Pure
-  - [v] `Adding Interactivity`
-    - [v] Responding to Events
-    - [v] State: A Component's Memory
-    - [v] Render and Commit
-    - [v] State as a Snapshot
-    - [v] Queueing a Series of State Updates
-    - [v] Updating Objects in State
-    - [v] Updating Arrays in State
-  - [v] `Managing State`
-    - [v] Reacting to Input with State
-    - [v] Choosing the State Structure
-    - [v] Sharing State Between Components
-    - [v] Preserving and Resetting State
-    - [v] Extracting State Logic into a Reducer
-    - [v] Passing Data Deeply with Context
-    - [v] Scaling Up with Reducer and Context
-  - [] `Escape Hatches`
-    - [v] Referencing Values with Refs
-    - [v] Manipulating the DOM with Refs
-    - [v] Synchronizing with Effects
-    - [v] You Might Not Need an Effect
-    - [v] Lifecycle of Reactive Effects
-    - [v] Separating Events from Effects
+  - [x] `Describing the UI`
+    - [x] Your First Component
+    - [x] Importing and Exporting Components
+    - [x] Writing Markup with JSX
+    - [x] JavaScript in JSX with Curly Braces
+    - [x] Passing Props to a Component
+    - [x] Conditional Rendering
+    - [x] Rendering Lists
+    - [x] Keeping Components Pure
+  - [x] `Adding Interactivity`
+    - [x] Responding to Events
+    - [x] State: A Component's Memory
+    - [x] Render and Commit
+    - [x] State as a Snapshot
+    - [x] Queueing a Series of State Updates
+    - [x] Updating Objects in State
+    - [x] Updating Arrays in State
+  - [x] `Managing State`
+    - [x] Reacting to Input with State
+    - [x] Choosing the State Structure
+    - [x] Sharing State Between Components
+    - [x] Preserving and Resetting State
+    - [x] Extracting State Logic into a Reducer
+    - [x] Passing Data Deeply with Context
+    - [x] Scaling Up with Reducer and Context
+  - [x] `Escape Hatches`
+    - [x] Referencing Values with Refs
+    - [x] Manipulating the DOM with Refs
+    - [x] Synchronizing with Effects
+    - [x] You Might Not Need an Effect
+    - [x] Lifecycle of Reactive Effects
+    - [x] Separating Events from Effects
     - [x] Removing Effect Dependencies
-    - [] Reusing Logic with Custom Hooks
+    - [x] Reusing Logic with Custom Hooks
