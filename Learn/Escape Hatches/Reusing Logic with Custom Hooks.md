@@ -1,0 +1,1746 @@
+# Reusing Logic with Custom Hooks
+
+- `React`는 `useState`, `useContext`, `useEffect`와 같은 내장 `Hook`이 함께 제공됩니다.
+- 때때로 데이터를 가져오거나, 온라인 여부를 추적하거나, 채팅방에 연결하는 등의 특정 목적을 위한 `Hook`이 있으면 더 좋을 겁니다.
+- `React`에서 이러한 `Hook`을 찾지 못할 수도 있지만, 필요한 `Hook`을 만들면 됩니다.
+
+## 배우게 될 것
+
+- 커스텀 `Hook`이 무엇인지, 커스텀 `Hook`을 작성하는 방법
+- 컴포넌트 간 로직 재사용 방법
+- 커스텀 `Hook`의 이름과 구조를 작성하는 방법
+- 커스텀 `Hook`을 추출해야 할 때와 방법
+
+## 커스텀 Hook: 컴포넌트 간 로직 공유하기
+
+- 대부분의 앱이 그렇듯이 네트워크에 크게 의존하는 앱을 개발한다고 가정해봅시다.
+- 유저가 앱을 사용하는 동안 네트워크 연결이 끊어졌을 경우 경고 메시지를 전달해야 합니다.
+- 어떻게 할 건가요?
+  <br><br>
+- 컴포넌트에는 아래 2가지가 필요합니다.
+
+1. 네트워크의 온라인 여부를 확인하는 상태
+2. 전역 온라인, 오프라인 이벤트를 구독하여 해당 상태를 업데이트하는 `Effect`
+   <br>
+
+- 이는 네트워크 상태와 컴포넌트의 동기화를 유지합니다.
+
+```js
+import { useState, useEffect } from 'react';
+
+export default function StatusBar() {
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    function handleOnline() {
+      setIsOnline(true);
+    }
+    function handleOffline() {
+      setIsOnline(false);
+    }
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  return <h1>{isOnline ? '✅ Online' : '❌ Disconnected'}</h1>;
+}
+```
+
+<br>
+
+- 네트워크를 켰다 꺼보면서 네트워크 연결에 따라 상태 표시줄이 어떻게 업데이트되는지 확인해보세요.
+  <br><br>
+- 다른 컴포넌트에서도 동일한 로직을 사용해야 한다면 어떻게 될까요?
+- 비활성화될 `Save` 버튼을 구현하고, 네트워크가 꺼져있는 동안 `Reconnecting`을 표시합니다.
+  <br><br>
+- 시작하기 위해서 `isOnline` 상태와 `Effect`를 `SaveButton`로 옮길 수 있습니다.
+
+```js
+import { useState, useEffect } from 'react';
+
+export default function SaveButton() {
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    function handleOnline() {
+      setIsOnline(true);
+    }
+    function handleOffline() {
+      setIsOnline(false);
+    }
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  function handleSaveClick() {
+    console.log('✅ Progress saved');
+  }
+
+  return (
+    <button disabled={!isOnline} onClick={handleSaveClick}>
+      {isOnline ? 'Save progress' : 'Reconnecting...'}
+    </button>
+  );
+}
+```
+
+<br>
+
+- 네트워크를 껐을 때 버튼이 변경되는지 확인합니다.
+  <br><br>
+- 위 2개 컴포넌트는 잘 동작하지만, 중복된 로직이 존재합니다.
+- 시각적으로 다른 모습을 하고 있지만, 로직은 재사용할 수 있습니다.
+
+## 컴포넌트에서 커스텀 Hook 추출
+
+- `useState`, `useEffect`와 유사하게 `useOnlineStatusHook`이 내장되어 있다고 상상해볼까요?
+- 아래 2개의 컴포넌트를 단순화하여 중복을 제거할 수 있습니다.
+
+```js
+function StatusBar() {
+  const isOnline = useOnlineStatus();
+  return <h1>{isOnline ? '✅ Online' : '❌ Disconnected'}</h1>;
+}
+
+function SaveButton() {
+  const isOnline = useOnlineStatus();
+
+  function handleSaveClick() {
+    console.log('✅ Progress saved');
+  }
+
+  return (
+    <button disabled={!isOnline} onClick={handleSaveClick}>
+      {isOnline ? 'Save progress' : 'Reconnecting...'}
+    </button>
+  );
+}
+```
+
+<br>
+
+- 이렇게 내장된 `Hook`이 존재하진 않지만, 직접 만들어 사용하면 됩니다.
+- `useOnlineStatus`라는 함수를 선언하고 전에 작성된 컴포넌트에서 중복된 코드를 이동시킵니다.
+
+```js
+function useOnlineStatus() {
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    function handleOnline() {
+      setIsOnline(true);
+    }
+    function handleOffline() {
+      setIsOnline(false);
+    }
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+  return isOnline;
+}
+```
+
+<br>
+
+- 함수의 마지막에서 `isOnline`을 반환합니다.
+- 이는 컴포넌트에서 이 값의 참조를 허락합니다.
+
+```js
+// App.js
+import { useOnlineStatus } from './useOnlineStatus.js';
+
+function StatusBar() {
+  const isOnline = useOnlineStatus();
+  return <h1>{isOnline ? '✅ Online' : '❌ Disconnected'}</h1>;
+}
+
+function SaveButton() {
+  const isOnline = useOnlineStatus();
+
+  function handleSaveClick() {
+    console.log('✅ Progress saved');
+  }
+
+  return (
+    <button disabled={!isOnline} onClick={handleSaveClick}>
+      {isOnline ? 'Save progress' : 'Reconnecting...'}
+    </button>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <SaveButton />
+      <StatusBar />
+    </>
+  );
+}
+```
+
+```js
+// useOnlineStatus.js
+import { useOnlineStatus } from './useOnlineStatus.js';
+
+function StatusBar() {
+  const isOnline = useOnlineStatus();
+  return <h1>{isOnline ? '✅ Online' : '❌ Disconnected'}</h1>;
+}
+
+function SaveButton() {
+  const isOnline = useOnlineStatus();
+
+  function handleSaveClick() {
+    console.log('✅ Progress saved');
+  }
+
+  return (
+    <button disabled={!isOnline} onClick={handleSaveClick}>
+      {isOnline ? 'Save progress' : 'Reconnecting...'}
+    </button>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <SaveButton />
+      <StatusBar />
+    </>
+  );
+}
+```
+
+<br>
+
+- 네트워크를 켜거나 끌 때 컴포넌트가 업데이트되는지 확인합니다.
+  <br><br>
+- 이제 컴포넌트는 중보된 로직을 갖고 있지 않습니다.
+- **더 중요한 사실은 브라우저 이벤트에 추가되어 수행되는 것이 아니라, 온라인 상태를 수행하는 작업에 대한 코드가 되었다는 점입니다.**
+  <br><br>
+- 커스텀 `Hook`을 로직에서 추출할 때, 외부 시스템 혹은 브라우저 API를 다루는 방법에 대한 자세한 내용을 숨길 수 있습니다.
+- 컴포넌트는 단순한 코드가 아니라, 사용자의 의도를 나타냅니다.
+
+## Hook의 이름은 항상 use로 시작해야 합니다.
+
+- `React` 앱은 컴포넌트로 만들어집니다.
+- 컴포넌트는 빌트인이든 커스텀이든 `Hook`을 통해 만들어집니다.
+- 다른 사람이 만든 커스텀 훅을 사용하지만, 직접 작성할 수도 있습니다.
+  <br><br>
+- 아래의 네이밍 컨벤션을 지켜야만 합니다.
+
+1. `StatusBar`, `SaveButton`과 같이 `React` 컴포넌트 이름은 대문자로 시작해야 합니다.
+   - `React` 컴포넌트는 `JSX`와 같이 화면에 표시할 무언가를 반환해야 합니다.
+2. `useOnlineStatu`, `useState`와 같이 `Hook`의 이름은 `use`로 시작되어야 하고, 바로 뒤에 대문자가 따라붙어야 합니다.
+   - `Hook`은 추상적인 값을 반환합니다.
+     <br><br>
+
+- 이러한 컨벤션은 컴포넌트 상태를 항상 확인할 수 있고 `Effect`와 **숨겨져** 있는 `React` 기능을 알 수 있습니다.
+- 예를 들어 컴포넌트 내부에서 `getColor` 함수 호출을 확인한다면, `use`로 시작되는 이름이 아니기에 `React`의 상태를 포함할 수 없다는 것을 알 수 있습니다.
+- 하지만 `useOnlineStatus`와 같은 함수는 내부에 다른 `Hook` 호출이 포함될 가능성이 높습니다.
+
+## 주의
+
+- 만약 린터가 반응하도록 되어 있다면, 아래의 명명 규칙을 적용할 겁니다.
+- 위의 코드로 스크롤하여 `useOnlineStatus` 이름을 `getOnlineStatus`로 변경합니다.
+- 린터는 더이상 `useState`를 호출하거나 `Effect`를 사용할 수 없습니다.
+- 오직 `Hook`와 컴포넌트만 다른 `Hook`을 호출할 수 있습니다.
+
+## Deep Dive - 렌더링 중에 호출되는 모든 기능은 use 접두사로 시작해야 할까요?
+
+- 아닙니다.
+- `Hook`라고 부르지 않는 함수는 `Hook`일 필요가 없습니다.
+  <br><br>
+- 만약 함수가 `Hook`을 호출하지 않는다면 `use` 접두사를 사용하면 안 됩니다.
+- 접두사가 없는 일반 함수를 작성햏야 합니다.
+- 아래의 `useSorted`는 `Hook`을 호출하지 않으므로 `getSorted`라고 부릅니다.
+
+```js
+// 🔴 권장하지 않습니다: use로 시작하는 Hook일 필요가 없습니다.
+function useSorted(items) {
+  return items.slice().sort();
+}
+
+// ✅ 굿: Hook을 사용하지 않는 정규 함수입니다.
+function getSorted(items) {
+  return items.slice().sort();
+}
+```
+
+<br>
+
+- 이렇게 하면 코드가 다음 조건을 포함하여 어디서나 이 정규 함수를 호출할 수 있습니다.
+
+```js
+function List({ items, shouldSort }) {
+  let displayedItems = items;
+  if (shouldSort) {
+    // ✅ Hook이 아니므로 조건에 따라 getStored를 호출해도 괜찮습니다.
+    displayedItems = getSorted(items);
+  }
+  // ...
+}
+```
+
+<br>
+
+- 함수 내부에 1개 이상의 `Hook`을 사용하는 경우 함수에 `use` 접두사를 사용해야 합니다.
+
+```js
+// ✅ 굿: 다른 Hook을 사용하는 Hook입니다.
+function useAuth() {
+  return useContext(Auth);
+}
+```
+
+<br>
+
+- 기술적인 관점에서 보자면 `React`에 의해 강제되는 것은 아닙니다.
+- 원칙적으로 다른 `Hook`을 호출하지 않는 `Hook`을 만들 수 있습니다.
+- 이는 보통 혼란을 유발하고 제한적이기에 이러한 패턴을 피하는 것이 좋습니다.
+- 하지만 이것이 도움이 되는 경우가 존재합니다.
+- 예를 들어 지금은 `Hook`을 사용하지 않지만 나중에 `Hook`을 호출할 계획인 경우입니다.
+- 그렇다면 `use` 접두사를 사용하는 것이 좋습니다.
+
+```js
+// ✅ 굿: 나중에 다른 Hook을 사용할지도 모르는 Hook
+function useAuth() {
+  // TODO: 인증이 완료되었을 때 이 코드를 변경합니다.
+  // return useContext(Auth);
+  return TEST_USER;
+}
+```
+
+<br>
+
+- 그러면 컴포넌트들이 조건부로 호출할 수 없게 됩니다.
+- 이는 실제로 `Hook` 호출을 내부에 추가할 때 중요해집니다.
+- 함수 내부에서 `Hook`을 사용할 계획이 없다면 `Hook`으로 만들면 안 됩니다.
+
+## 커스텀 훅은 상태 자체가 아닌 상태 저장 로직을 공유하는 것입니다.
+
+- 앞선 예제에서 네트워크를 켜고 끌 때 2개 구성요소가 함께 업데이트 되었습니다.
+- 그러나 `isOnline` 상태 변수가 공유되는 것은 아닙니다.
+
+```js
+function StatusBar() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+
+function SaveButton() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+```
+
+<br>
+
+- 중복을 추출하기 전과 동일한 방식으로 동작합니다.
+
+```js
+function StatusBar() {
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    // ...
+  }, []);
+  // ...
+}
+
+function SaveButton() {
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    // ...
+  }, []);
+  // ...
+}
+```
+
+<br>
+
+- 이는 완전히 분리된 상태 변수와 `Effect`입니다.
+- 유저가 동일한 외부 값으로 동기화했기에, 동시에 동일한 값만 가집니다.
+  <br><br>
+- 더 잘 설명하기 위해선 다른 예시가 필요합니다.
+- `Form` 컴포넌트를 살펴봅시다.
+
+```js
+import { useState } from 'react';
+
+export default function Form() {
+  const [firstName, setFirstName] = useState('Mary');
+  const [lastName, setLastName] = useState('Poppins');
+
+  function handleFirstNameChange(e) {
+    setFirstName(e.target.value);
+  }
+
+  function handleLastNameChange(e) {
+    setLastName(e.target.value);
+  }
+
+  return (
+    <>
+      <label>
+        First name:
+        <input value={firstName} onChange={handleFirstNameChange} />
+      </label>
+      <label>
+        Last name:
+        <input value={lastName} onChange={handleLastNameChange} />
+      </label>
+      <p>
+        <b>
+          Good morning, {firstName} {lastName}.
+        </b>
+      </p>
+    </>
+  );
+}
+```
+
+<br>
+
+- 각 입력 필드에는 중복된 로직이 존재합니다.
+
+1. 상태 (`firstName`, `lastName`)
+2. 변경 핸들러 (`handleFirstNameChange`, `handleLastNameChange`)
+3. `JSX`에는 해당 입력에 대한 `value`, `onChange` 어트리뷰트를 지정하는 부분이 존재합니다.
+   <br><br>
+
+- 아래 `useFormInput` 커스텀 훅을 사용하여 중복 로직을 추출할 수 있습니다.
+
+```js
+// App.js
+import { useFormInput } from './useFormInput.js';
+
+export default function Form() {
+  const firstNameProps = useFormInput('Mary');
+  const lastNameProps = useFormInput('Poppins');
+
+  return (
+    <>
+      <label>
+        First name:
+        <input {...firstNameProps} />
+      </label>
+      <label>
+        Last name:
+        <input {...lastNameProps} />
+      </label>
+      <p>
+        <b>
+          Good morning, {firstNameProps.value} {lastNameProps.value}.
+        </b>
+      </p>
+    </>
+  );
+}
+```
+
+```js
+// useFormInput.js
+import { useState } from 'react';
+
+export function useFormInput(initialValue) {
+  const [value, setValue] = useState(initialValue);
+
+  function handleChange(e) {
+    setValue(e.target.value);
+  }
+
+  const inputProps = {
+    value: value,
+    onChange: handleChange,
+  };
+
+  return inputProps;
+}
+```
+
+<br>
+
+- `value`로 불리는 **1개** 상태 변수만 선언하는 것을 확인하세요.
+  <br><br>
+- 하지만 `Form` 컴포넌트는 `useFormInput`을 2번 호출합니다.
+
+```js
+function Form() {
+  const firstNameProps = useFormInput('Mary');
+  const lastNameProps = useFormInput('Poppins');
+  // ...
+}
+```
+
+<br>
+
+- 2개의 분리된 상태 변수를 선언하는 것처럼 동작하는 이유입니다.
+  <br><br>
+- **커스텀 훅은 상태 저장 로직을 공유하는 것이지, 상태 자체를 공유하는 것은 아닙니다.**
+- **`Hook`에 대한 모든 호출은 동일한 `Hook`에 대한 다른 호출과 완전히 독립적입니다.**
+- 위 2개의 코드 샌드박스가 완전히 동일한 이유입니다.
+- 커스텀 `Hook`을 추출하기 전과 후의 동작은 완전히 일치합니다.
+  <br><br>
+- 컴포넌트 간에 상태 자체를 공유해야 하는 경우 **상태 끌어올리기**를 사용합니다.
+
+## Hook 사이에 반응형 값 전달하기
+
+- 커스텀 `Hook` 내부의 코드는 컴포넌트가 리렌더링될 때마다 리렌더링됩니다.
+- 컴포넌트와 비슷하게 커스텀 `Hook`이 **순수해야 하는** 이유입니다.
+- 컴포넌트 본문으로서 커스텀 `Hook` 코드를 생각해보세요.
+  <br><br>
+- 커스텀 `Hook`은 컴포넌트와 함께 리렌더링되기 때문에 항상 최신의 `props`와 상태를 전달받습니다.
+- `ChatRoom` 예제를 살펴봅시다.
+
+```js
+// App.js
+import { useState } from 'react';
+import ChatRoom from './ChatRoom.js';
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value='general'>general</option>
+          <option value='travel'>travel</option>
+          <option value='music'>music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+```js
+// ChatRoom.js
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+import { showNotification } from './notifications.js';
+
+export default function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId,
+    };
+    const connection = createConnection(options);
+    connection.on('message', (msg) => {
+      showNotification('New message: ' + msg);
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]);
+
+  return (
+    <>
+      <label>
+        Server URL:
+        <input
+          value={serverUrl}
+          onChange={(e) => setServerUrl(e.target.value)}
+        />
+      </label>
+      <h1>Welcome to the {roomId} room!</h1>
+    </>
+  );
+}
+```
+
+```js
+// chat.js
+export function createConnection({ serverUrl, roomId }) {
+  // A real implementation would actually connect to the server
+  if (typeof serverUrl !== 'string') {
+    throw Error('Expected serverUrl to be a string. Received: ' + serverUrl);
+  }
+  if (typeof roomId !== 'string') {
+    throw Error('Expected roomId to be a string. Received: ' + roomId);
+  }
+  let intervalId;
+  let messageCallback;
+  return {
+    connect() {
+      console.log(
+        '✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...'
+      );
+      clearInterval(intervalId);
+      intervalId = setInterval(() => {
+        if (messageCallback) {
+          if (Math.random() > 0.5) {
+            messageCallback('hey');
+          } else {
+            messageCallback('lol');
+          }
+        }
+      }, 3000);
+    },
+    disconnect() {
+      clearInterval(intervalId);
+      messageCallback = null;
+      console.log(
+        '❌ Disconnected from "' + roomId + '" room at ' + serverUrl + ''
+      );
+    },
+    on(event, callback) {
+      if (messageCallback) {
+        throw Error('Cannot add the handler twice.');
+      }
+      if (event !== 'message') {
+        throw Error('Only "message" event is supported.');
+      }
+      messageCallback = callback;
+    },
+  };
+}
+```
+
+```js
+// notification.js
+import Toastify from 'toastify-js';
+import 'toastify-js/src/toastify.css';
+
+export function showNotification(message, theme = 'dark') {
+  Toastify({
+    text: message,
+    duration: 2000,
+    gravity: 'top',
+    position: 'right',
+    style: {
+      background: theme === 'dark' ? 'black' : 'white',
+      color: theme === 'dark' ? 'white' : 'black',
+    },
+  }).showToast();
+}
+```
+
+<br>
+
+- `serverUrl`이나 `roomId`를 변경할 때 `Effect`는 변경에 **반응**하고 재동기화합니다.
+- `Effect`의 종속성을 변경할 때마다 채팅방이 다시 연결된다는 것을 콘솔 메시지를 통해 알 수 있습니다.
+  <br><br>
+- `Effect` 코드를 커스텀 `Hook`으로 이동해보겠습니다.
+
+```js
+export function useChatRoom({ serverUrl, roomId }) {
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId,
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    connection.on('message', (msg) => {
+      showNotification('New message: ' + msg);
+    });
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]);
+}
+```
+
+<br>
+
+- 이렇게 하면 `ChatRoom` 컴포넌트가 내부에서 작동하는 방식에 대해 걱정하지 않고 커스텀 `Hook`을 호출 할 수 있습니다.
+
+```js
+export default function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  useChatRoom({
+    roomId: roomId,
+    serverUrl: serverUrl,
+  });
+
+  return (
+    <>
+      <label>
+        Server URL:
+        <input
+          value={serverUrl}
+          onChange={(e) => setServerUrl(e.target.value)}
+        />
+      </label>
+      <h1>Welcome to the {roomId} room!</h1>
+    </>
+  );
+}
+```
+
+<br>
+
+- 훨신 깔끔해 보이죠?
+  <br><br>
+- 로직은 여전히 `prop`과 상태에 반응하고 있습니다.
+
+```js
+// ChatRoom.js
+import { useState } from 'react';
+import { useChatRoom } from './useChatRoom.js';
+
+export default function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  useChatRoom({
+    roomId: roomId,
+    serverUrl: serverUrl,
+  });
+
+  return (
+    <>
+      <label>
+        Server URL:
+        <input
+          value={serverUrl}
+          onChange={(e) => setServerUrl(e.target.value)}
+        />
+      </label>
+      <h1>Welcome to the {roomId} room!</h1>
+    </>
+  );
+}
+```
+
+<br>
+
+- `Hook` 1개의 반환 값을 어떻게 사용하는지 확인하세요.
+
+```js
+export default function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  useChatRoom({
+    roomId: roomId,
+    serverUrl: serverUrl,
+  });
+  // ...
+}
+```
+
+<br>
+
+- 그리고 다른 `Hook`에 입력으로 전달하세요.
+
+```js
+export default function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  useChatRoom({
+    roomId: roomId,
+    serverUrl: serverUrl,
+  });
+  // ...
+}
+```
+
+<br>
+
+- `ChatRoom` 컴포넌트가 리렌더링될 때마다 최신의 `roomId`, `serverUrl`을 `Hook`에 전달합니다.
+- 이것이 리렌더링 후 값이 다를 때마다 `Effect`가 채팅방에 ㄷ시 연결되는 이유입니다.
+
+## 커스텀 Hook에 이벤트 핸들러 전달하기
+
+- 이 섹션은 아직 `React`에 추가되지 않았기 때문에 아직 사용할 수 없는 실험적 API입니다.
+  <br><br>
+- 컴포넌트에서 `useChatRoom`를 사용하면서 다른 컴포넌트가 해당 동작을 커스터마이징할 수 있습니다.
+- 예를 들어 현재 메시지가 도착할 때 수행할 작업데 애한 로직은 `Hook` 내부에 하드 코딩되어 있습니다.
+
+```js
+export function useChatRoom({ serverUrl, roomId }) {
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId,
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    connection.on('message', (msg) => {
+      showNotification('New message: ' + msg);
+    });
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]);
+}
+```
+
+<br>
+
+- 이 로직을 컴포넌트로 다시 이동한다고 가정해 보겠습니다.
+
+```js
+export default function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  useChatRoom({
+    roomId: roomId,
+    serverUrl: serverUrl,
+    onReceiveMessage(msg) {
+      showNotification('New message: ' + msg);
+    },
+  });
+  // ...
+}
+```
+
+<br>
+
+- 이 작업을 수행하려면 커스텀 `Hook`을 변경하여 종속성 중 하나로 `onReceiveMessage`를 사용합니다.
+
+```js
+export function useChatRoom({ serverUrl, roomId, onReceiveMessage }) {
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId,
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    connection.on('message', (msg) => {
+      onReceiveMessage(msg);
+    });
+    return () => connection.disconnect();
+  }, [roomId, serverUrl, onReceiveMessage]); // ✅ 모든 종속성이 지정되었습니다.
+}
+```
+
+<br>
+
+- 이 방법은 동작하지만 커스텀 `Hook`이 이벤트 핸들러를 허용할 때 1개 더 개선할 수 있습니다.
+  <br><br>
+- `onRecieveMessage`을 종속성에 추가하는 것은 컴포넌트가 리렌더링될 때마다 채팅방에 다시 연결되도록 하므로 이상적이지 않습니다.
+- 이 이벤트 핸들러를 `Effect` 이벤트로 래핑하여 종속성에서 제거합니다.
+
+```js
+import { useEffect, useEffectEvent } from 'react';
+// ...
+
+export function useChatRoom({ serverUrl, roomId, onReceiveMessage }) {
+  const onMessage = useEffectEvent(onReceiveMessage);
+
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId,
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    connection.on('message', (msg) => {
+      onMessage(msg);
+    });
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]); // ✅ 모든 종속성이 지정되었습니다.
+}
+```
+
+<br>
+
+- 이제 `ChatRoom` 컴포넌트가 리렌더링될 때마다 채팅방에 다시 연결되지 않습니다.
+- 다음은 이벤트 핸들러를 커스텀 `Hook`에 전달하여 유저가 사용할 수 있는 데모입니다.
+
+```js
+// App.js
+import { useState } from 'react';
+import ChatRoom from './ChatRoom.js';
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value='general'>general</option>
+          <option value='travel'>travel</option>
+          <option value='music'>music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+```js
+// ChatRoom.js
+import { useState } from 'react';
+import { useChatRoom } from './useChatRoom.js';
+import { showNotification } from './notifications.js';
+
+export default function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  useChatRoom({
+    roomId: roomId,
+    serverUrl: serverUrl,
+    onReceiveMessage(msg) {
+      showNotification('New message: ' + msg);
+    },
+  });
+
+  return (
+    <>
+      <label>
+        Server URL:
+        <input
+          value={serverUrl}
+          onChange={(e) => setServerUrl(e.target.value)}
+        />
+      </label>
+      <h1>Welcome to the {roomId} room!</h1>
+    </>
+  );
+}
+```
+
+```js
+// useChatRoom.js
+import { useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+import { createConnection } from './chat.js';
+
+export function useChatRoom({ serverUrl, roomId, onReceiveMessage }) {
+  const onMessage = useEffectEvent(onReceiveMessage);
+
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId,
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    connection.on('message', (msg) => {
+      onMessage(msg);
+    });
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]);
+}
+```
+
+```js
+// chat.js
+export function createConnection({ serverUrl, roomId }) {
+  // A real implementation would actually connect to the server
+  if (typeof serverUrl !== 'string') {
+    throw Error('Expected serverUrl to be a string. Received: ' + serverUrl);
+  }
+  if (typeof roomId !== 'string') {
+    throw Error('Expected roomId to be a string. Received: ' + roomId);
+  }
+  let intervalId;
+  let messageCallback;
+  return {
+    connect() {
+      console.log(
+        '✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...'
+      );
+      clearInterval(intervalId);
+      intervalId = setInterval(() => {
+        if (messageCallback) {
+          if (Math.random() > 0.5) {
+            messageCallback('hey');
+          } else {
+            messageCallback('lol');
+          }
+        }
+      }, 3000);
+    },
+    disconnect() {
+      clearInterval(intervalId);
+      messageCallback = null;
+      console.log(
+        '❌ Disconnected from "' + roomId + '" room at ' + serverUrl + ''
+      );
+    },
+    on(event, callback) {
+      if (messageCallback) {
+        throw Error('Cannot add the handler twice.');
+      }
+      if (event !== 'message') {
+        throw Error('Only "message" event is supported.');
+      }
+      messageCallback = callback;
+    },
+  };
+}
+```
+
+```js
+// notification.js
+import Toastify from 'toastify-js';
+import 'toastify-js/src/toastify.css';
+
+export function showNotification(message, theme = 'dark') {
+  Toastify({
+    text: message,
+    duration: 2000,
+    gravity: 'top',
+    position: 'right',
+    style: {
+      background: theme === 'dark' ? 'black' : 'white',
+      color: theme === 'dark' ? 'white' : 'black',
+    },
+  }).showToast();
+}
+```
+
+- `ChatRoom`을 사용하기 위해 동작 원리를 알 필요가 없습니다.
+- 다른 컴포넌트에 추가하고 다른 옵션을 전달할 수 있으며 동일한 방식으로 동작합니다.
+- 이것이 커스텀 `Hook`의 힘입니다.
+
+## 커스텀 Hook을 사용할 때
+
+- 중복된 모든 코드를 커스텀 `Hook`으로 추출할 필요는 없습니다.
+- 일부 중복은 괜찮습니다.
+- 예를 들어 단일 `useState`를 래핑하기 위해 `useFormInput` `Hook`을 호출하는 것은 불필요합니다.
+  <br><br>
+- 그러나 `Effect`를 작성할 때마다 커스텀 `Hook`으로 포장하는 것이 더 명확한지 고민해야 합니다.
+- **`Effect`를 자주 사용하면 안 됩니다.**
+- 따라서 `Effect`를 사용하려면 외부 시스템과 동기화하거나 `React`에 존재하지 않는 API 같은 작업을 수행하기 위해 **`React` 밖으로 이동해야 합니다.**
+- 커스텀 `Hook`으로 `Effect`를 래핑하면 의도와 데이터 흐름을 정확하게 전달할 수 있습니다.
+  <br><br>
+- 예를 들어 2개의 드롭다운을 표시하는 `ShippingForm` 컴포넌트를 살펴봅시다.
+- 하나는 도시 목록을 표시하고 다른 하나는 도시의 지역 목록을 표시합니다.
+
+```js
+function ShippingForm({ country }) {
+  const [cities, setCities] = useState(null);
+  // Effect는 나라의 도시를 페치합니다.
+  useEffect(() => {
+    let ignore = false;
+    fetch(`/api/cities?country=${country}`)
+      .then((response) => response.json())
+      .then((json) => {
+        if (!ignore) {
+          setCities(json);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [country]);
+
+  const [city, setCity] = useState(null);
+  const [areas, setAreas] = useState(null);
+  // Effect는 선택된 도시의 지역을 페치합니다.
+  useEffect(() => {
+    if (city) {
+      let ignore = false;
+      fetch(`/api/areas?city=${city}`)
+        .then((response) => response.json())
+        .then((json) => {
+          if (!ignore) {
+            setAreas(json);
+          }
+        });
+      return () => {
+        ignore = true;
+      };
+    }
+  }, [city]);
+
+  // ...
+}
+```
+
+<br>
+
+- 위 코드는 꽤 중복되어있음에도 불구하고 서로 분리하여 유지하는 것이 좋습니다.
+- 그들은 서로 다른 2가지를 동기화하기 때문에 1개의 `Effect`로 합쳐서는 안 됩니다.
+- 대신 위의 `ShippingForm` 컴포넌트를 유저 데이터 `Hook`으로 추출하여 단순화할 수 있습니다.
+
+```js
+function useData(url) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    if (url) {
+      let ignore = false;
+      fetch(url)
+        .then((response) => response.json())
+        .then((json) => {
+          if (!ignore) {
+            setData(json);
+          }
+        });
+      return () => {
+        ignore = true;
+      };
+    }
+  }, [url]);
+  return data;
+}
+```
+
+<br>
+
+- 이제 `ShippingForm` 컴포넌트의 2개 `Effect`를 `useData` 호출로 교체할 수 있습니다.
+
+```js
+function ShippingForm({ country }) {
+  const cities = useData(`/api/cities?country=${country}`);
+  const [city, setCity] = useState(null);
+  const areas = useData(city ? `/api/areas?city=${city}` : null);
+  // ...
+}
+```
+
+<br>
+
+- 커스텀 `Hook`으로 추출하면 데이터 흐름이 명확해집니다.
+- `url`을 입력하고 `data`를 밖으로 꺼냅니다.
+- `useData` 내부에서 `Effect`를 **숨기면** `ShippingForm` 컴포넌트에서 작업하는 사람이 불필요한 종속성을 추가하는 것을 방지할 수 있습니다.
+- 이상적으로 시간이 지남에 따라 `Effect`의 대부분은 커스텀 `Hook`에 존재합니다.
+
+## Deep Dive - 구체적인 고수준 사용 사례에 초점을 맞춘 커스텀 Hook을 유지하세요.
+
+- 먼저 커스텀 `Hook`의 이름을 선택하빈다.
+- 명확한 이름 선택에 어려움이 존재한다면 `Effect`가 컴포넌트의 나머지 로직과 결합되어 아직 추출될 준비가 되지 않았을 수도 있습니다.
+  <br><br>
+- 이상적으로 코드를 자주 작성하지 않는 사람도 커스텀 `Hook`이 수행하는 작업, 반환하는 작업에 대해 충분히 추측할 수 있을 정도로 커스텀 `Hook`의 이름이 명확해야 합니다.
+  <br><br>
+- ✅ `useData(url)`
+- ✅ `useImpressionLog(eventName, extraData)`
+- ✅ `useChatRoom(options)`
+  <br><br>
+- 외부 시스템과 동기화할 때 커스텀 `Hook` 이름이 더 기술적일 수 있으며 해당 시스템과 관련된 전문 용어를 사용할 수 있습니다.
+- 그 시스템에 정통한 사람에게 분명한 것이 좋습니다.
+  <br><br>
+- ✅ `useMediaQuery(query)`
+- ✅ `useSocket(url)`
+- ✅ `useIntersectionObserver(ref, options)`
+  <br><br>
+- **구체적인 고수준 사용 사례에 초점을 맞춘 커스텀 Hook을 유지하세요.**
+- `Effect` API 자체에 대한 대안과 편의 래퍼 역할을 하는 커스텀 **생명 주기** `Hook`을 생성하고 사용하지 마세요.
+  <br><br>
+- 🔴 `useMount(fn)`
+- 🔴 `useEffectOnce(fn)`
+- 🔴 `useUpdateEffect(fn)`
+  <br><br>
+- 예를 들어 `useMount` `Hook`은 일부 코드가 **마운트될 때만** 실행되도록 합니다.
+
+```js
+function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  // 🔴 권장하지 않습니다: 커스텀 Hook "lifecycle"을 사용하는 것
+  useMount(() => {
+    const connection = createConnection({ roomId, serverUrl });
+    connection.connect();
+
+    post('/analytics/event', { eventName: 'visit_chat' });
+  });
+  // ...
+}
+
+// 🔴 권장하지 않습니다: 커스텀 Hook "lifecycle"을 생성하는 것
+function useMount(fn) {
+  useEffect(() => {
+    fn();
+  }, []); // 🔴 useEffect에 누락된 종속성이 있습니다. (fn)
+}
+```
+
+<br>
+
+- `useMount`와 같은 커스텀 **생명 주기** `Hook`은 `React` 패러다임에 잘 맞지 않습니다.
+- 예를 들어 이 코드 예제는 실수가 존재합니다.
+- (`roomId` 혹은 `serverUrl` 변경에 **반응**하지 않습니다.)
+- 하지만 린터는 직접적으로 `useEffect` 호출만 확인하므로 경고를 표시하지 않습니다.
+  <br><br>
+- `Effect`를 작성하는 경우 `React` API를 직접 사용하여 시작합니다.
+
+```js
+function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  // ✅ Good: two raw Effects separated by purpose
+
+  useEffect(() => {
+    const connection = createConnection({ serverUrl, roomId });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [serverUrl, roomId]);
+
+  useEffect(() => {
+    post('/analytics/event', { eventName: 'visit_chat', roomId });
+  }, [roomId]);
+
+  // ...
+}
+```
+
+<br>
+
+- 그런 다음 다양한 고수준 사례에 대해 커스텀 `Hook`을 추출할 수 있습니다.
+
+```js
+function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  // ✅ 훌륭해요: 용도에 따라 이름이 붙여진 커스텀 Hook
+  useChatRoom({ serverUrl, roomId });
+  useImpressionLog('visit_chat', { roomId });
+  // ...
+}
+```
+
+<br>
+
+- **좋은 커스텀 `Hook`은 호출 코드가 수행하는 작업을 제한하여 호출 코드를 선언적으로 만듭니다.**
+- 예를 들어 `useChatRoom(options)`은 채팅방에만 연결할 수 있는 반면, `useImporessLog(eventName, extraData)`는 분석에 노출 로그만 보낼 수 있습니다.
+- 커스텀 `Hook` API가 사용 케이스를 제한하지 않고 매우 추상적이라면, 장기적으로 더 많은 문제를 야기할 가능성이 높습니다.
+
+## 커스텀 Hook은 더 나은 패턴으로 마이그레이션할 수 있도록 도와줍니다.
+
+- `Effect`는 **escape hatch**입니다.
+- `React` 외부로 나가야할 때와 더 나은 내장 솔루션이 없을 때 사용합니다.
+- 시간이 지나면서 `React`의 목표는 보다 구체적인 문제에 구체적인 솔루션을 제공하여 `Effect` 개수를 최소화하는 것입니다.
+- 커스텀 `Hook`의 래핑 `Effect`를 사용하면 이러한 솔루션을 사용할 수 있을 때 더 쉽게 업그레이드할 수 있습니다.
+
+```js
+// App.js
+import { useOnlineStatus } from './useOnlineStatus.js';
+
+function StatusBar() {
+  const isOnline = useOnlineStatus();
+  return <h1>{isOnline ? '✅ Online' : '❌ Disconnected'}</h1>;
+}
+
+function SaveButton() {
+  const isOnline = useOnlineStatus();
+
+  function handleSaveClick() {
+    console.log('✅ Progress saved');
+  }
+
+  return (
+    <button disabled={!isOnline} onClick={handleSaveClick}>
+      {isOnline ? 'Save progress' : 'Reconnecting...'}
+    </button>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <SaveButton />
+      <StatusBar />
+    </>
+  );
+}
+```
+
+```js
+// useOnlineStatus.js
+import { useState, useEffect } from 'react';
+
+export function useOnlineStatus() {
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    function handleOnline() {
+      setIsOnline(true);
+    }
+    function handleOffline() {
+      setIsOnline(false);
+    }
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+  return isOnline;
+}
+```
+
+- 위 예제에서 `useOnlineStatus`는 `useState`와 `useEffect`의 쌍으로 구현되었습니다.
+- 하지만 이는 최고의 방법이 아닙니다.
+- 고려되지 않은 엣지 케이스가 많습니다.
+- 예를 들어 컴포넌트가 마운트될 때 `isOnline`은 이미 `true`지만, 이미 오프라인 상태가 된 경우에는 오류가 발생합니다.
+- 브라우저에서 `navigator.onLine` API를 사용하여 이를 확인할 수 있지만 서버에서 `React` 앱을 실행하여 첫 `HTML`을 생성하면 적용할 수 없습니다.
+- 간단히 말해서 코드는 리팩토링할 수 있습니다.
+  <br><br>
+- 다행히 `React 18`에는 `useSyncExternalStore`라는 전용 API가 포함되어 있어 이러한 모든 문제를 처리합니다.
+- 아래는 이 새로운 API를 활용하기 위해 다시 작성된 `useOnlineStatus` `Hook`을 사용하는 방법입니다.
+
+```js
+// App.js
+import { useOnlineStatus } from './useOnlineStatus.js';
+
+function StatusBar() {
+  const isOnline = useOnlineStatus();
+  return <h1>{isOnline ? '✅ Online' : '❌ Disconnected'}</h1>;
+}
+
+function SaveButton() {
+  const isOnline = useOnlineStatus();
+
+  function handleSaveClick() {
+    console.log('✅ Progress saved');
+  }
+
+  return (
+    <button disabled={!isOnline} onClick={handleSaveClick}>
+      {isOnline ? 'Save progress' : 'Reconnecting...'}
+    </button>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <SaveButton />
+      <StatusBar />
+    </>
+  );
+}
+```
+
+```js
+// useOnlineStatus.js
+import { useSyncExternalStore } from 'react';
+
+function subscribe(callback) {
+  window.addEventListener('online', callback);
+  window.addEventListener('offline', callback);
+  return () => {
+    window.removeEventListener('online', callback);
+    window.removeEventListener('offline', callback);
+  };
+}
+
+export function useOnlineStatus() {
+  return useSyncExternalStore(
+    subscribe,
+    () => navigator.onLine, // 클라이언트 단에서 값을 가져오는 방법
+    () => true // 서버 단에서 값을 가져오는 방법
+  );
+}
+```
+
+<br>
+
+- 이 마이그레이션을 수행하기 위해 컴포넌트를 변경할 필요가 없다는 점을 확인하세요.
+
+```js
+function StatusBar() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+
+function SaveButton() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+```
+
+<br>
+
+- 아래는 커스텀 `Hook`에서 `Effect`를 래핑하는 것이 유용한 또 다른 이유입니다.
+
+1. `Effect`에 대한 데이터 흐름이 굉장히 명확해집니다.
+2. 컴포넌트가 `Effect`의 정확한 구현보다 의도에 초점을 맞추도록 합니다.
+3. `React`가 새 기능을 추가하면 컴포넌트를 변경하지 않고 이러한 `Effect`를 제거할 수 있습니다.
+
+<br>
+
+- **디자인 시스템**과 유사하게 앱의 컴포넌트에서 일반적인 관용구를 커스텀 `Hook`으로 추출하는 것이 유용할 겁니다.
+- 이렇게 함현 컴포넌트의 코드가 의도에 초점을 맞출 수 있고 `Effect`를 자주 사용하지 않아도 됩니다.
+
+## Deep Dive - React는 데이터 페치에 대한 빌트인 솔루션을 제공하나요?
+
+- 세부 사항을 아직 연구하고 있으며 아래와 같은 방법을 사용할 것입니다.
+
+```js
+import { use } from 'react'; // 아직 사용할 수 없습니다!
+
+function ShippingForm({ country }) {
+  const cities = use(fetch(`/api/cities?country=${country}`));
+  const [city, setCity] = useState(null);
+  const areas = city ? use(fetch(`/api/areas?city=${city}`)) : null;
+  // ...
+}
+```
+
+## 또 다른 방법도 존재합니다.
+
+- 브라우저의 `requestAnimationFrame` API를 **사용하여** 처음부터 페이드인 에니메이션을 구현하고 싶다고 가정해봅시다.
+- 애니메이션 루프를 설정하는 `Effect`로 시작할 수 있습니다.
+- 애니메이션의 각 프레임 동안, `1`에 도달할 때까지 `ref`에 보유하고 있는 DOM 노드의 불투명도를 변경할 수 있습니다.
+
+```js
+import { useState, useEffect, useRef } from 'react';
+
+function Welcome() {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const duration = 1000;
+    const node = ref.current;
+
+    let startTime = performance.now();
+    let frameId = null;
+
+    function onFrame(now) {
+      const timePassed = now - startTime;
+      const progress = Math.min(timePassed / duration, 1);
+      onProgress(progress);
+      if (progress < 1) {
+        // 화면에 그릴 프레임이 남아 있습니다.
+        frameId = requestAnimationFrame(onFrame);
+      }
+    }
+
+    function onProgress(progress) {
+      node.style.opacity = progress;
+    }
+
+    function start() {
+      onProgress(0);
+      startTime = performance.now();
+      frameId = requestAnimationFrame(onFrame);
+    }
+
+    function stop() {
+      cancelAnimationFrame(frameId);
+      startTime = null;
+      frameId = null;
+    }
+
+    start();
+    return () => stop();
+  }, []);
+
+  return (
+    <h1 className='welcome' ref={ref}>
+      Welcome
+    </h1>
+  );
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>{show ? 'Remove' : 'Show'}</button>
+      <hr />
+      {show && <Welcome />}
+    </>
+  );
+}
+```
+
+<br>
+
+- 가독성이 좋은 컴포넌트로 만들기 위해 `useFadeIn` 커스텀 `Hook`으로 추출할 수 있습니다.
+
+```js
+import { useState, useEffect, useRef } from 'react';
+import { useFadeIn } from './useFadeIn.js';
+
+function Welcome() {
+  const ref = useRef(null);
+
+  useFadeIn(ref, 1000);
+
+  return (
+    <h1 className='welcome' ref={ref}>
+      Welcome
+    </h1>
+  );
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>{show ? 'Remove' : 'Show'}</button>
+      <hr />
+      {show && <Welcome />}
+    </>
+  );
+}
+```
+
+```js
+import { useEffect } from 'react';
+
+export function useFadeIn(ref, duration) {
+  useEffect(() => {
+    const node = ref.current;
+
+    let startTime = performance.now();
+    let frameId = null;
+
+    function onFrame(now) {
+      const timePassed = now - startTime;
+      const progress = Math.min(timePassed / duration, 1);
+      onProgress(progress);
+      if (progress < 1) {
+        // 화면에 그릴 프레임이 남아 있습니다.
+        frameId = requestAnimationFrame(onFrame);
+      }
+    }
+
+    function onProgress(progress) {
+      node.style.opacity = progress;
+    }
+
+    function start() {
+      onProgress(0);
+      startTime = performance.now();
+      frameId = requestAnimationFrame(onFrame);
+    }
+
+    function stop() {
+      cancelAnimationFrame(frameId);
+      startTime = null;
+      frameId = null;
+    }
+
+    start();
+    return () => stop();
+  }, [ref, duration]);
+}
+```
+
+<br>
+
+- `useFadeIn` 코드를 그대로 유지할 수 있지만, 더 리팩토링할 수 있습니다.
+- 예를 들어 `useFadeIn`에서 애니메이션 루프를 설정하기 위한 로직을 `useAnimationLoop`라는 새로운 커스텀 `Hook`로 호출할 수 있습니다.
+
+```js
+// App.js
+import { useState, useEffect, useRef } from 'react';
+import { useFadeIn } from './useFadeIn.js';
+
+function Welcome() {
+  const ref = useRef(null);
+
+  useFadeIn(ref, 1000);
+
+  return (
+    <h1 className='welcome' ref={ref}>
+      Welcome
+    </h1>
+  );
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>{show ? 'Remove' : 'Show'}</button>
+      <hr />
+      {show && <Welcome />}
+    </>
+  );
+}
+```
+
+```js
+// useFadeIn.js
+import { useState, useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+
+export function useFadeIn(ref, duration) {
+  const [isRunning, setIsRunning] = useState(true);
+
+  useAnimationLoop(isRunning, (timePassed) => {
+    const progress = Math.min(timePassed / duration, 1);
+    ref.current.style.opacity = progress;
+    if (progress === 1) {
+      setIsRunning(false);
+    }
+  });
+}
+
+function useAnimationLoop(isRunning, drawFrame) {
+  const onFrame = useEffectEvent(drawFrame);
+
+  useEffect(() => {
+    if (!isRunning) {
+      return;
+    }
+
+    const startTime = performance.now();
+    let frameId = null;
+
+    function tick(now) {
+      const timePassed = now - startTime;
+      onFrame(timePassed);
+      frameId = requestAnimationFrame(tick);
+    }
+
+    tick();
+    return () => cancelAnimationFrame(frameId);
+  }, [isRunning]);
+}
+```
+
+<br>
+
+- 하지만 꼭 그렇게 할 필요는 없습니다.
+- 일반 함수와 비슷하게, 궁극적으로 코드의 다른 부분의 사이에 경계를 그릴 위치를 결정합니다.
+- 예를 들어 매우 다른 접근 방식을 취할 수도 있습니다.
+- 로직을 `Effect` 내부에서 유지하는 대신, 대부분의 명령 로직을 자바스크립트 클래스 내부로 이동시킬 수 있습니다.
+
+```js
+// App.js
+import { useState, useEffect, useRef } from 'react';
+import { useFadeIn } from './useFadeIn.js';
+
+function Welcome() {
+  const ref = useRef(null);
+
+  useFadeIn(ref, 1000);
+
+  return (
+    <h1 className='welcome' ref={ref}>
+      Welcome
+    </h1>
+  );
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>{show ? 'Remove' : 'Show'}</button>
+      <hr />
+      {show && <Welcome />}
+    </>
+  );
+}
+```
+
+```js
+// useFadeIn.js
+import { useState, useEffect } from 'react';
+import { FadeInAnimation } from './animation.js';
+
+export function useFadeIn(ref, duration) {
+  useEffect(() => {
+    const animation = new FadeInAnimation(ref.current);
+    animation.start(duration);
+    return () => {
+      animation.stop();
+    };
+  }, [ref, duration]);
+}
+```
+
+```js
+// animation.js
+export class FadeInAnimation {
+  constructor(node) {
+    this.node = node;
+  }
+  start(duration) {
+    this.duration = duration;
+    this.onProgress(0);
+    this.startTime = performance.now();
+    this.frameId = requestAnimationFrame(() => this.onFrame());
+  }
+  onFrame() {
+    const timePassed = performance.now() - this.startTime;
+    const progress = Math.min(timePassed / this.duration, 1);
+    this.onProgress(progress);
+    if (progress === 1) {
+      this.stop();
+    } else {
+      // 화면에 그릴 프레임이 남아 있습니다.
+      this.frameId = requestAnimationFrame(() => this.onFrame());
+    }
+  }
+  onProgress(progress) {
+    this.node.style.opacity = progress;
+  }
+  stop() {
+    cancelAnimationFrame(this.frameId);
+    this.startTime = null;
+    this.frameId = null;
+    this.duration = 0;
+  }
+}
+```
+
+<br>
+
+- `Effect`를 사용하여 `React`를 외부 시스템에 연결할 수 있습니다.
+- 여러 애니메이션을 연결하기 위해 `Effect` 간에 더 많은 조정이 필요할수록, 위의 코드 샌드박스처럼 `Effect`와 `Hook`에서 로직을 완전히 추출하는 것이 효율적입니다.
+- 그러면 추출한 코드가 **외부 시스템**이 됩니다.
+- 이렇게 하면 `React` 외부로 이동한 시스템에만 메시지를 보내면 되므로 `Effect`가 간단해집니다.
+  <br><br>
+- 위의 예는 페이드인 로직이 자바스크립트로 작성되어야 한다고 가정합니다.
+- 하지만 특정 페이드인 애니메이션은 `CSS`로 구현하는 것이 더 간단하고 효율적입니다.
+
+```js
+// App.js
+import { useState, useEffect, useRef } from 'react';
+import './welcome.css';
+
+function Welcome() {
+  return <h1 className='welcome'>Welcome</h1>;
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>{show ? 'Remove' : 'Show'}</button>
+      <hr />
+      {show && <Welcome />}
+    </>
+  );
+}
+```
+
+```js
+// welcom.css
+.welcome {
+  color: white;
+  padding: 50px;
+  text-align: center;
+  font-size: 50px;
+  background-image: radial-gradient(circle, rgba(63, 94, 251, 1) 0%, rgba(252,70,107,1) 100%);
+
+  animation: fadeIn 1000ms;
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+```
+
+<br>
+
+- 때때로 꼭 `Hook`을 사용하지 않아도 됩니다!
+
+## 요약
+
+- 커스텀 `Hook`을 사용하면 컴포넌트 간에 로직을 공유할 수 있습니다.
+- 커스텀 `Hook`은 `use`로 시작하고 뒤에 대문자가 오는 이름을 지정해야 합니다.
+- 사용자 정의 `Hook`는 상태 자체가 아닌 상태 로직만 공유합니다.
+- 하나의 `Hook`에서 다른 `Hook`로 반응 값을 전달할 수 있으며 최신 상태를 유지합니다.
+- 모든 `Hook`는 컴포넌트가 다시 렌더링될 때마다 다시 실행됩니다.
+- 커스텀 `Hook`의 코드는 컴포넌트 코드처럼 순수해야 합니다.
+- 사용자 정의 `Hook`에서 수신한 이벤트 핸들러를 `Effect` 이벤트로 래핑합니다.
+- `useMount`와 같은 커스텀 `Hook`을 만들지 마십시오.
+  - 목적을 구체적으로 유지하십시오.
+- 코드의 경계를 선택하는 방법과 위치는 사용자에게 달려 있습니다.
