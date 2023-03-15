@@ -19,37 +19,37 @@
 ## 진행 상황
 
 - `Learn` 부분
-  - [x] `Describing the UI`
-    - [x] Your First Component
-    - [x] Importing and Exporting Components
-    - [x] Writing Markup with JSX
-    - [x] JavaScript in JSX with Curly Braces
-    - [x] Passing Props to a Component
-    - [x] Conditional Rendering
-    - [x] Rendering Lists
-    - [x] Keeping Components Pure
-  - [x] `Adding Interactivity`
-    - [x] Responding to Events
-    - [x] State: A Component's Memory
-    - [x] Render and Commit
-    - [x] State as a Snapshot
-    - [x] Queueing a Series of State Updates
-    - [x] Updating Objects in State
-    - [x] Updating Arrays in State
-  - [x] `Managing State`
-    - [x] Reacting to Input with State
-    - [x] Choosing the State Structure
-    - [x] Sharing State Between Components
-    - [x] Preserving and Resetting State
-    - [x] Extracting State Logic into a Reducer
-    - [x] Passing Data Deeply with Context
-    - [x] Scaling Up with Reducer and Context
-  - [x] `Escape Hatches`
-    - [x] Referencing Values with Refs
-    - [x] Manipulating the DOM with Refs
-    - [x] Synchronizing with Effects
-    - [x] You Might Not Need an Effect
-    - [x] Lifecycle of Reactive Effects
-    - [x] Separating Events from Effects
-    - [x] Removing Effect Dependencies
-    - [x] Reusing Logic with Custom Hooks
+  - [x] `01. Describing the UI`
+    - [x] 1. Your First Component
+    - [x] 2. Importing and Exporting Components
+    - [x] 3. Writing Markup with JSX
+    - [x] 4. JavaScript in JSX with Curly Braces
+    - [x] 5. Passing Props to a Component
+    - [x] 6. Conditional Rendering
+    - [x] 7. Rendering Lists
+    - [x] 8. Keeping Components Pure
+  - [x] `02. Adding Interactivity`
+    - [x] 1. Responding to Events
+    - [x] 2. State: A Component's Memory
+    - [x] 3. Render and Commit
+    - [x] 4.State as a Snapshot
+    - [x] 5. Queueing a Series of State Updates
+    - [x] 6. Updating Objects in State
+    - [x] 7. Updating Arrays in State
+  - [x] `03. Managing State`
+    - [x] 1. Reacting to Input with State
+    - [x] 2. Choosing the State Structure
+    - [x] 3. Sharing State Between Components
+    - [x] 4. Preserving and Resetting State
+    - [x] 5. Extracting State Logic into a Reducer
+    - [x] 6. Passing Data Deeply with Context
+    - [x] 7. Scaling Up with Reducer and Context
+  - [x] `04. Escape Hatches`
+    - [x] 1. Referencing Values with Refs
+    - [x] 2. Manipulating the DOM with Refs
+    - [x] 3. Synchronizing with Effects
+    - [x] 4. You Might Not Need an Effect
+    - [x] 5. Lifecycle of Reactive Effects
+    - [x] 6. Separating Events from Effects
+    - [x] 7. Removing Effect Dependencies
+    - [x] 8. Reusing Logic with Custom Hooks
