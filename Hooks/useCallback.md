@@ -40,9 +40,9 @@ export default function ProductPage({ productId, referrer, theme }) {
 
 - `dependencies`
   - `fn`에서 참조하는 모든 반응형 값의 목록입니다.
-  - 반응형 값에는 프로퍼티, 상태, 컴포넌트에서 선언된 모든 변수와 함수가 포함됩니다.
+  - 반응형 값에는 `prop`, 상태, 컴포넌트에서 선언된 모든 변수와 함수가 포함됩니다.
   - 린터를 사용하면 모든 반응형 값이 종속성에 올바르게 지정되었는지 체크합니다.
-  - 종속성 배열에는 일정한 수의 항목이 있어야 하며 `[dep1, dep2, dep3]`과 같이 인라인으로 작성해야 합니다.
+  - 종속성 배열에는 일정한 수의 항목이 있어야 하며 `[dep1, dep2, dep3]`와 같이 인라인으로 작성해야 합니다.
   - `React`는 `Object.is` 비교 메서드를 사용합니다.
 
 <br>
@@ -141,7 +141,7 @@ function ProductPage({ productId, referrer, theme }) {
 
 <br>
 
-- `theme` `prop`을 토글하면 잠시 멈추는 것을 보셨을 텐데 JSX에서 `<ShippingForm />`을 제거하면 속도 향상을 느낄 수 있습니다.
+- `theme` `prop`을 토글하면 잠시 멈추는 것을 보셨을 텐데 `JSX`에서 `<ShippingForm />`을 제거하면 속도 향상을 느낄 수 있습니다.
 - 이는 `ShippingForm` 컴포넌트에 최적화할 부분이 있다는 것입니다.
 
 <br>
@@ -163,7 +163,7 @@ const ShippingForm = memo(function ShippingForm({ onSubmit }) {
 
 - **이렇게 변경하면 `ShippingForm`의 모든 `prop`이 직전 렌더링과 동일한 경우 리렌더링을 건너뜁니다.**
 - 이때 함수 캐시이 중요해집니다!
-- `useCallback` `handleSubmit`을 정의했다고 가정해 봅시다.
+- `useCallback`없이 `handleSubmit`을 정의했다고 가정해 봅시다.
 
 <br>
 
