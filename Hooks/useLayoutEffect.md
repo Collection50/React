@@ -7,7 +7,7 @@
 
 <br>
 
-- `useLayoutEffect`는 브라우저가 화면을 `paint` 하기 전에 실행되는 `useEffect`의 버전입니다.
+- `useLayoutEffect`는 브라우저가 화면을 `paint` 하기 전에 실행되는 `useEffect`입니다.
 
 ```jsx
 useLayoutEffect(setup, dependencies?)
