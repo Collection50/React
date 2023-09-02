@@ -56,7 +56,7 @@
   - [x] `useEffect`
   - [x] `useId`
   - [x] `useImperativeHandle`
-  - [] `useInsertionEffect`
+  - [x] `useInsertionEffect`
   - [x] `useLayoutEffect`
   - [] `useMemo`
   - [] `useReducer`
