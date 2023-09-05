@@ -61,7 +61,7 @@
   - [] `useMemo`
   - [] `useReducer`
   - [x] `useRef`
-  - [] `useState`
+  - [x] `useState`
   - [] `useSyncExternalStore`
   - [] `useTransition`
 
