@@ -63,7 +63,7 @@
   - [x] `useRef`
   - [x] `useState`
   - [] `useSyncExternalStore`
-  - [] `useTransition`
+  - [x] `useTransition`
 
 <br>
 
