@@ -59,7 +59,7 @@
   - [x] `useInsertionEffect`
   - [x] `useLayoutEffect`
   - [x] `useMemo`
-  - [] `useReducer`
+  - [x] `useReducer`
   - [x] `useRef`
   - [x] `useState`
   - [] `useSyncExternalStore`
