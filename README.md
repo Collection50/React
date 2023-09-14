@@ -62,7 +62,7 @@
   - [x] `useReducer`
   - [x] `useRef`
   - [x] `useState`
-  - [] `useSyncExternalStore`
+  - [x] `useSyncExternalStore`
   - [x] `useTransition`
 
 <br>
