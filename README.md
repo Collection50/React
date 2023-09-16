@@ -68,7 +68,7 @@
 <br>
 
 - `Component`
-  - [] `<Fragment>(<>)`
+  - [x] `<Fragment>(<>)`
   - [] `<Profiler>`
   - [] `<StrictMode>`
   - [x] `<Suspense>`
