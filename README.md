@@ -71,7 +71,7 @@
   - [] `<Fragment>(<>)`
   - [] `<Profiler>`
   - [] `<StrictMode>`
-  - [] `<Suspense>`
+  - [x] `<Suspense>`
 
 <br>
 
