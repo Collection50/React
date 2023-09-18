@@ -8,19 +8,22 @@
 </Suspense>
 ```
 
+<br>
+
 ## 레퍼런스
 
 ### `<Suspense>`
 
 ### `Props`
 
-- `children` - 렌더링하려는 실제 UI입니다.
-  - 렌더링하는 동안 하위 컴포넌트가 일시 중단되면 `<Suspense>` 경계가 `fallback`으로 전환됩니다.
+- `children`
+  - 렌더링하려는 실제 UI입니다.
+  - 렌더링하는 동안 하위 컴포넌트가 일시 중단되면 `<Suspense>` 바운더리가 `fallback`으로 전환됩니다.
 - `fallback`
   - 로딩이 완료되지 않은 경우 렌더링하는 대체 UI입니다.
-  - 유효한 `React` 노드는 무엇이든 사용할 수 있지만 일반적으로 `fallback`은 로딩 스피너나 스켈레톤을 사용하빈다.
+  - 유효한 `React` 노드는 무엇이든 사용할 수 있지만 일반적으로 `fallback`은 로딩 스피너나 스켈레톤을 사용합니다.
   - `<Suspense>`는 하위 컴포넌트가 일시 중단되면 자동으로 `fallback`으로 전환되고 데이터가 준비되면 하위 컴포넌트로 전환됩니다.
-  - 렌더링 중에 `fallback`이 중단되면 가까운 상위 `<Suspense>` 경계를 활성화합니다.
+  - 렌더링 중에 `fallback`이 중단되면 가까운 상위 `<Suspense>` 바운더리를 활성화합니다.
 
 <br>
 
@@ -28,9 +31,9 @@
 
 - `React`는 처음 마운트하기 전에 일시 중단된 컴포넌트의 상태를 보존하지 않습니다.
   - 컴포넌트가 로드되면 `React`는 중단된 트리의 컴포넌트를 처음부터 렌더링합니다.
-- `<Suspense>`가 콘텐츠를 표시하고 있다가 일시 중단된 경우 원인이 `startTransition` 또는 `useDeferredValue`로 인한 것이 아니라면 `fallback`이 다시 표시됩니다.
+- `<Suspense>`가 콘텐츠를 표시하고 있다가 일시 중단된 경우, 원인이 [`startTransition`](https://github.com/Collection50/React/blob/master/APIs/startTransition.md) 또는 [`useDeferredValue`](https://github.com/Collection50/React/blob/master/Hooks/useDeferredValue.md)로 인한 것이 아니라면 `fallback`이 다시 표시됩니다.
 - `React`가 다시 일시 중단되어 이미 표시된 콘텐츠를 숨겨야 하는 경우 `useLayoutEffect`를 초기화합니다.
-  - 콘텐츠가 다시 표시될 준비가 되면 `React`는 `useLayoutEffect`를 다시 실행합니다.
+  - 콘텐츠를 표시할 준비가 되면 `React`는 `useLayoutEffect`를 다시 실행합니다.
   - 콘텐츠가 숨겨져 있는 동안 `useLayoutEffect`가 실행되지 않도록 합니다.
 - `React`에는 `<Suspense>`와 통합된 **스트리밍 `SSR`**와 **선택적 `hydration`** 등의 내부 최적화가 이뤄져있습니다.
 - [아키텍처 개요](https://github.com/reactwg/react-18/discussions/37)를 읽고 자세히 알아보세요.
@@ -41,7 +44,7 @@
 
 ### 콘텐츠가 로드되는 동안 `fallback` 표시
 
-- 애플리케이션의 모든 부분을 `<Suspense>` 경계로 래핑할 수 있습니다.
+- 애플리케이션의 모든 부분을 `<Suspense>` 바운더리로 래핑할 수 있습니다.
 
 ```jsx
 <Suspense fallback={<Loading />}>
@@ -56,7 +59,7 @@
 <br>
 
 - 아래 예시는 앨범 목록을 가져오는 동안 `Album` 컴포넌트가 일시 중단됩니다.
-- 준비가 될 때까지 위에서 가장 가까운 `<Suspense>` 경계로 전환하여 `Loading` 컴포넌트를 렌더링합니다.
+- 준비가 될 때까지 위에서 가장 가까운 `<Suspense>` 바운더리로 전환하여 `Loading` 컴포넌트를 렌더링합니다.
 - 데이터가 로드되면 `React`는 `Loading` `fallback`을 숨기고 `Album` 컴포넌트를 렌더링합니다.
 
 ```jsx
@@ -83,7 +86,7 @@ function Loading() {
 
 ### 참고
 
-- `<Suspense>`를 지원하는된 데이터만 `<Suspense>` 컴포넌트를 사용할 수 있습니다.
+- `<Suspense>`를 지원하는 데이터만 `<Suspense>` 컴포넌트를 사용할 수 있습니다.
 - `<Suspense>`를 지원하는 것은 아래와 같습니다.
 
 <br>
@@ -93,7 +96,7 @@ function Loading() {
 
 <br>
 
-- `<Suspense>`는 `useEffect` 또는 이벤트 핸들러 내부에서 데이터를 가져올 때는 **감지하지 않습니다.**
+- `<Suspense>`는 `useEffect` 또는 이벤트 핸들러 내부에서 데이터를 가져올 때는 **동작하지 않습니다.**
 
 <br>
 
@@ -108,10 +111,10 @@ function Loading() {
 
 <br>
 
-### 콘텐츠를 한 번에 공개
+### 콘텐츠를 1번에 보여주기
 
-- 기본적으로 `<Suspense>`의 전체 트리는 1게 단위로 취급됩니다.
-- 예를 들어 컴포넌트 중 **1개만** 일시 중단되더라도 **모든** 컴포넌트가 함께 로딩 표시기로 대체됩니다.
+- 기본적으로 `<Suspense>`의 전체 트리는 1개 단위로 취급됩니다.
+- 예를 들어 컴포넌트 중 **1개만** 일시 중단되더라도 **모든** 컴포넌트가 함께 `fallback`으로 대체됩니다.
 
 ```jsx
 <Suspense fallback={<Loading />}>
@@ -129,7 +132,7 @@ function Loading() {
 <br>
 
 - 아래 예제는 `Biography`와 `Album` 모두 데이터를 페치합니다.
-- 그러나 1개 `<Suspense>` 경계에 그룹화되어 있기 때문에 컴포넌트는 항상 함께 **렌더링**됩니다.
+- 그러나 1개 `<Suspense>` 바운더리에 그룹화되어 있기 때문에 컴포넌트는 항상 함께 **렌더링**됩니다.
 
 ```jsx
 // ArtistPage.js
@@ -166,10 +169,10 @@ export default function Panel({ children }) {
 
 <br>
 
-- 데이터를 페치하는 컴포넌트가 `<Suspense>` 경계의 바로 아래의 하위 컴포넌트일 필요는 없습니다.
+- 데이터를 페치하는 컴포넌트가 `<Suspense>` 바운더리의 바로 아래 하위 컴포넌트일 필요는 없습니다.
 - 예를 들어 `Biography`와 `Album`을 새 `Details` 컴포넌트로 이동할 수 있습니다.
-- 동작은 변경되지 않습니다.
-- `Biography`와 `Album`은 가장 가까운 상위 `<Suspense>` 경계를 공유하므로 함께 렌더링됩니다.
+- 동일하게 동작합니다.
+- `Biography`와 `Album`은 가장 가까운 상위 `<Suspense>` 바운더리를 공유하므로 함께 렌더링됩니다.
 
 ```jsx
 <Suspense fallback={<Loading />}>
@@ -272,13 +275,13 @@ export default function Panel({ children }) {
 <br>
 
 - `<Suspense>`를 사용하면 UI의 어떤 부분이 항상 동시에 **렌더링**되어야 하는지, 어떤 부분이 점진적으로 콘텐츠를 표시해야 하는지 조정할 수 있습니다.
-- 나머지 동작에 영향을 주지 않고 트리의 어느 위치에서나 `<Suspense>` 경계를 추가, 이동, 삭제할 수 있습니다.
+- 나머지 동작에 영향을 주지 않고 트리의 어느 위치에서나 `<Suspense>` 바운더리를 추가, 이동, 삭제할 수 있습니다.
 
 <br>
 
-- 모든 컴포넌트에 `<Suspense>`를 설정하지 마세요.
+- 모든 컴포넌트에 `<Suspense>`를 설정하지 않습니다.
 - `<Suspense>`는 유저가 경험하는 로딩 시퀀스보다 더 세분화되어서는 안 됩니다.
-- 디자이너와 함께 작업하는 경우 로딩 상태를 어디에 배치해야 하는지 디자이너에게 물어보세요.
+- 디자이너와 함께 작업하는 경우 로딩 상태를 어디에 배치해야 하는지 디자이너와 상의합니다.
 - 디자인 와이어프레임에 포함되었을 가능성이 높습니다.
 
 <br>
@@ -312,7 +315,7 @@ export default function App() {
 <br>
 
 - 일반적인 UI 대체 패턴은 목록 업데이트를 **지연**하고 새 결과가 준비될 때까지 이전 결과를 계속 표시하는 것입니다.
-- `useDeferredValue` `hook`을 사용하면 `query`의 **지연**된 버전을 전달합니다.
+- [`useDeferredValue`](https://github.com/Collection50/React/blob/master/Hooks/useDeferredValue.md) `hook`을 사용하면 `query`의 **지연**된 버전을 전달합니다.
 
 ```jsx
 export default function App() {
@@ -392,7 +395,7 @@ export default function App() {
 
 ### 이미 보여지는 콘텐츠가 숨겨지지 않도록 방지
 
-- 컴포넌트가 일시 중단되면 가장 가까운 상위 `<Suspense>` 경계가 `fallback`을 표시하도록 전환됩니다.
+- 컴포넌트가 일시 중단되면 가장 가까운 상위 `<Suspense>` 바운더리가 `fallback`을 표시하도록 전환됩니다.
 - 이미 콘텐츠가 보여지고 있는 경우 사용자 경험은 하락합니다.
 
 ```jsx
@@ -496,12 +499,12 @@ function AlbumsGlimmer() {
 <br>
 
 - 버튼을 누르자 `Router` 컴포넌트가 `IndexPage` 대신 `ArtistPage`를 렌더링합니다.
-- `ArtistPage`의 하위 컴포넌트가 일시 중단되었기 때문에 가장 가까운 `<Suspense>`가 `fallback`을 표시했기 때문입니다.
+- `ArtistPage`의 하위 컴포넌트가 일시 중단되어서 가장 가까운 `<Suspense>`가 `fallback`을 표시했기 때문입니다.
 - 가장 가까운 `<Suspense>`는 `root` 근처에 있었기 때문에 전체 레이아웃이 `BigSpinner`로 변경되었습니다.
 
 <br>
 
-- 이를 방지하려면 `startTransition`을 사용하여 상태 업데이트를 트랜지션으로 표시할 수 있습니다.
+- 이를 방지하려면 `startTransition`을 사용하여 상태 업데이트를 트랜지션으로 표시합니다.
 
 ```jsx
 function Router() {
@@ -636,7 +639,7 @@ function AlbumsGlimmer() {
 
 <br>
 
-### 트랜지션이 발생하고 있음을 나타냅니다.
+### 트랜지션이 발생하고 있음을 명시적으로 나타냅니다.
 
 - 위 예시는 버튼을 클릭해도 네비게이션이 진행 중이라는 시각적 표시가 없습니다.
 - 안내문을 추가하려면 `startTransition`을 `useTransition`으로 변경합니다.
@@ -754,8 +757,8 @@ function AlbumsGlimmer() {
 
 ### 네비게이션에서 `<Suspense>` 재설정하기
 
-- 트랜지션하는 동안 `React`는 이미 보여지는 콘텐츠를 숨기지 않습니다.
-- 하지만 다른 매개변수가 있는 라우트로 이동하는 경우 `React`에게 다른 콘텐츠라고 표시해야 하는 경우가 존재합니다.
+- 트랜지션하는 동안 `React`는 이미 보여지고 있는 콘텐츠를 숨기지 않습니다.
+- 하지만 다른 페이지로 이동하는 경우 `React`에게 다른 콘텐츠라고 표시해야 하는 경우가 존재합니다.
 - 이를 `key`로 표현합니다.
 
 ```jsx
@@ -764,7 +767,7 @@ function AlbumsGlimmer() {
 
 <br>
 
-- 프로필 페이지에서 다른 페이지로 이동 중인데 무언가 일시 중단되었다고 가정해 보겠습니다.
+- 프로필 페이지에서 다른 페이지로 이동 중에 무언가 일시 중단되었다고 가정해 보겠습니다.
 - 해당 업데이트가 트랜지션으로 래핑되어 있으면 이미 보여지는 콘텐츠에 대한 `fallback`이 트리거되지 않습니다.
 
 <br>
@@ -773,7 +776,7 @@ function AlbumsGlimmer() {
 - 이 경우 `fallback`을 표시하는 것이 좋습니다.
 - 예를 들어 한 사용자의 타임라인은 다른 사용자의 타임라인과 다른 콘텐츠입니다.
 - `key`를 지정하면 `React`가 각 프로필을 서로 다른 컴포넌트로 취급하고 네비게이션 중에 `<Suspense>`를 재설정할 수 있습니다.
-- `<Suspense>`를 통합하는 라우터는 이 작업을 자동으로 수행합니다.
+- `<Suspense>` 통합 라우터는 이 작업을 자동으로 수행합니다.
 
 <br>
 
@@ -786,14 +789,14 @@ function AlbumsGlimmer() {
 
 <br>
 
-- 클라이언트에서 `React`는 동일한 컴포넌트의 리렌더링을 시도합니다.
-- 클라이언트에서도 에러가 발생하면 `React`는 에러를 던지고 가장 가까운 **에러 경계**를 표시합니다.
+- **클라이언트**에서 `React`는 동일한 컴포넌트의 리렌더링을 시도합니다.
+- 클라이언트에서도 에러가 발생하면 `React`는 에러를 던지고 가장 가까운 **에러 바운더리**를 표시합니다.
 - 클라이언트에서 에러가 발생하지 않는다면 콘텐츠가 성공적으로 렌더링되었으므로 `React`는 에러를 표시하지 않습니다.
 
 <br>
 
 - 이를 활용하여 일부 컴포넌트에 `SSR`을 사용하지 않도록 선택할 수 있습니다.
-- 이렇게 하려면 서버 환경에서 오류를 발생시킨 다음 해당 컴포넌트를 `<Suspense>` 경계로 래핑하여 `fallback`으로 대체합니다.
+- 이렇게 하려면 서버 환경에서 오류를 발생시킨 다음 해당 컴포넌트를 `<Suspense>` 바운더리로 래핑하여 `fallback`으로 대체합니다.
 
 <br>
 
@@ -822,11 +825,11 @@ function Chat() {
 ### 업데이트 중에 UI가 `fallback`으로 대체되는 것을 방지하려면 어떻게 해야 하나요?
 
 - UI를 `fallback`으로 대체하면 사용자 환경이 불안정해집니다.
-- 위 상황은 업데이트로 인해 컴포넌트가 일시 중단었고, 가장 가까운 `<Suspense>` 경계에 이미 콘텐츠가 표시되고 있을 때 발생합니다.
+- 위 상황은 업데이트로 인해 컴포넌트가 일시 중단었고, 가장 가까운 `<Suspense>` 바운더리에 이미 콘텐츠가 표시되고 있을 때 발생합니다.
 
 <br>
 
-- 이를 방지하려면 **`startTransition`을 사용하여 업데이트를 급하지 않은 것으로 표시**합니다.
+- 이를 방지하려면 **[`startTransition`](https://github.com/Collection50/React/blob/master/APIs/startTransition.md)을 사용하여 업데이트를 급하지 않은 것으로 표시**합니다.
 - 트랜지션이 진행되는 동안 `React`는 `fallback`이 나타나지 않도록 데이터가 로드될 때까지 기다립니다.
 
 ```jsx
@@ -841,7 +844,7 @@ function handleNextPageClick() {
 <br>
 
 - 이렇게 하면 기존 콘텐츠가 숨겨지지 않습니다.
-- 새로 렌더링된 `<Suspense>` 경계는 즉시 `fallback`을 표시하여 UI를 가리지 않고 콘텐츠가 로드된후 보여줍니다.
+- 새로 렌더링된 `<Suspense>` 바운더리는 `fallback`으로 UI를 가리지 않고 콘텐츠가 로드된후 보여줍니다.
 
 <br>
 
