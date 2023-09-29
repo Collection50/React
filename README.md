@@ -78,6 +78,6 @@
 - `APIs`
   - [x] `createContext`
   - [x] `forwardRef`
-  - [] `lazy`
+  - [x] `lazy`
   - [] `memo`
   - [] `startTransition`
