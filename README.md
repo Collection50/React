@@ -79,5 +79,5 @@
   - [x] `createContext`
   - [x] `forwardRef`
   - [x] `lazy`
-  - [] `memo`
-  - [] `startTransition`
+  - [x] `memo`
+  - [x] `startTransition`
