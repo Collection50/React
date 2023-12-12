@@ -274,7 +274,7 @@ function subscribe(callback) {
 
 <br>
 
-- `useOnlineStatus` `hook`은 네트워크의 연결 여부를 저장합니다.
+- `useOnlineStatus` `hook`은 네트워크 연결 여부를 저장합니다.
 
 ```jsx
 import { useSyncExternalStore } from 'react';

@@ -54,7 +54,7 @@ function TabContainer() {
 <br>
 
 - 상태의 **`set` 함수를 사용할 수 있는 경우**에만 업데이트를 트랜지션으로 래핑할 수 있습니다.
-- **`prop`이나 커스텀 `hook`**에 대한 응답으로 트랜지션을 시작하려면 [`useDeferredValue`](https://github.com/Collection50/React/blob/master/Hooks/useDeferredValue.md)를 사용합니다.
+- **`prop`이나 커스텀 `hook`에 대한 응답**으로 트랜지션을 시작하려면 [`useDeferredValue`](https://github.com/Collection50/React/blob/master/Hooks/useDeferredValue.md)를 사용합니다.
 
 <br>
 

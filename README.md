@@ -81,3 +81,9 @@
   - [x] `lazy`
   - [x] `memo`
   - [x] `startTransition`
+
+<br>
+
+- `Directives`
+  - [] `use client`
+  - [] `use server`

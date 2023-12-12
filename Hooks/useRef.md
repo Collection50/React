@@ -42,9 +42,9 @@ function MyComponent() {
 <br>
 
 - `current`
-  - `useRef`를 호출 시 전달한 초기값으로 설정됩니다.
+  - `useRef` 호출 시 전달한 초기값으로 설정됩니다.
   - 나중에 다른 값으로 설정할 수 있습니다.
-  - `ref` 객체를 `JSX` 노드에 어트리뷰트로 전달하면 `React`가 `current`에 노드를 할당합니다.
+  - `ref` 객체를 `JSX` 노드에 어트리뷰트로 전달하면 `React` 노드가 `current`에 할당됩니다.
 
 <br>
 
@@ -91,7 +91,7 @@ function Stopwatch() {
 <br>
 
 - `ref`를 변경해도 리렌더링 되지 않습니다.
-- `ref`는 컴포넌트의 시각적 출력에 영향을 주지 않는 정보를 저장에 유용합니다.
+- `ref`는 컴포넌트의 시각적 출력에 영향을 주지 않는 정보 저장에 유용합니다.
 - 예를 들어 `interval ID`를 저장했다가 나중에 참조해야 하는 경우 `ref`를 사용합니다.
 - `ref` 내부의 값을 업데이트하려면 `current` 프로퍼티를 **수동**으로 변경합니다.
 
@@ -206,11 +206,12 @@ function MyComponent() {
 ```jsx
 // ...
 return <input ref={inputRef} />;
+// ref.current = input 노드
 ```
 
 <br>
 
-- `React`가 DOM 노드를 생성하여 렌더링하면 `React`는 **`ref` 객체의 `current` 프로퍼티를 해당 DOM 노드로 설정합니다.**
+- DOM 노드를 렌더링하면 `React`는 **`ref` 객체의 `current` 프로퍼티에 해당 DOM 노드를 할당합니다.**
 - 이제 `<input>`의 DOM 노드에 접근하여 `focus()`와 같은 메서드를 호출할 수 있습니다
 
 ```jsx
